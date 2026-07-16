@@ -201,7 +201,7 @@ h2 {
   min-width: 0;
 }
 
-.focus-editor label,
+.quote-label span,
 .energy-control label,
 .text-field span {
   color: var(--muted);
@@ -209,22 +209,53 @@ h2 {
   font-weight: 800;
 }
 
-.focus-editor input {
+.quote-label {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.quote-label em {
+  background: rgba(24, 119, 101, 0.09);
+  border-radius: 999px;
+  color: var(--green-dark);
+  font-size: 0.76rem;
+  font-style: normal;
+  font-weight: 850;
+  padding: 5px 9px;
+  white-space: nowrap;
+}
+
+.daily-quote {
   background: rgba(255, 255, 255, 0.72);
   border: 1px solid rgba(15, 79, 67, 0.22);
   border-radius: 8px;
-  font-size: clamp(1.35rem, 3vw, 2.3rem);
-  font-weight: 850;
-  letter-spacing: 0;
-  line-height: 1.15;
+  margin: 0;
   min-height: 70px;
   min-width: 0;
-  outline: none;
   padding: 14px 16px;
   width: 100%;
 }
 
-.focus-editor input:focus,
+.daily-quote p {
+  color: var(--ink);
+  font-size: clamp(1.35rem, 3vw, 2.3rem);
+  font-weight: 850;
+  letter-spacing: 0;
+  line-height: 1.15;
+  margin: 0;
+}
+
+.daily-quote cite {
+  color: var(--coral);
+  display: block;
+  font-size: 0.86rem;
+  font-style: normal;
+  font-weight: 850;
+  margin-top: 12px;
+}
+
 .task-form input:focus,
 textarea:focus,
 input[type="range"]:focus-visible {

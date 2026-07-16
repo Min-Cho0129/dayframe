@@ -39,6 +39,8 @@ test("server-renders the morning productivity app", async () => {
   assert.match(html, /Goals/);
   assert.match(html, /Projects/);
   assert.match(html, /Notes &amp; journal/);
+  assert.match(html, /Daily quote/);
+  assert.match(html, /Refreshes every day/);
   assert.match(html, /Today&#x27;s momentum/);
   assert.doesNotMatch(html, /[가-힣]/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|react-loading-skeleton/i);
@@ -54,6 +56,8 @@ test("keeps starter preview code out of the app surface", async () => {
 
   assert.deepEqual(previewFiles, []);
   assert.match(page, /dayframe-app-v2/);
+  assert.match(page, /dailyQuotes/);
+  assert.match(page, /getDailyQuote/);
   assert.match(page, /useSyncExternalStore/);
   assert.match(layout, /title:\s*"Dayframe"/);
   assert.doesNotMatch(page, /[가-힣]/);

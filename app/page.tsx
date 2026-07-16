@@ -53,6 +53,11 @@ type Project = {
 
 type Mood = "calm" | "clear" | "bold";
 
+type DailyQuote = {
+  text: string;
+  tag: string;
+};
+
 type AppState = {
   focus: string;
   energy: number;
@@ -67,6 +72,130 @@ type AppState = {
 
 const STORAGE_KEY = "dayframe-app-v2";
 const storeListeners = new Set<() => void>();
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+const dailyQuotes: DailyQuote[] = [
+  {
+    text: "Small starts create the kind of momentum big plans cannot fake.",
+    tag: "Start small",
+  },
+  {
+    text: "The day gets easier when the first step is visible.",
+    tag: "Find the step",
+  },
+  {
+    text: "Focus is not doing more. It is deciding what gets your best energy.",
+    tag: "Choose focus",
+  },
+  {
+    text: "A clear morning turns scattered effort into directed progress.",
+    tag: "Set direction",
+  },
+  {
+    text: "Progress begins when today has a shape.",
+    tag: "Frame the day",
+  },
+  {
+    text: "Make the next action simple enough that resistance has nowhere to hide.",
+    tag: "Lower friction",
+  },
+  {
+    text: "Consistency is built by returning, not by never missing.",
+    tag: "Return again",
+  },
+  {
+    text: "Your calendar does not need more ambition. It needs cleaner decisions.",
+    tag: "Decide cleanly",
+  },
+  {
+    text: "The best plan is the one that survives contact with your real energy.",
+    tag: "Plan honestly",
+  },
+  {
+    text: "One completed priority changes the tone of the entire day.",
+    tag: "Finish one",
+  },
+  {
+    text: "A good routine is a quiet agreement with the person you are becoming.",
+    tag: "Keep the promise",
+  },
+  {
+    text: "Clarity compounds when you write down what matters before the noise begins.",
+    tag: "Write first",
+  },
+  {
+    text: "Do not wait for a perfect mood. Build a small doorway into action.",
+    tag: "Begin anyway",
+  },
+  {
+    text: "The work feels lighter when the next move is already chosen.",
+    tag: "Preselect action",
+  },
+  {
+    text: "Energy follows motion more often than motion follows energy.",
+    tag: "Move first",
+  },
+  {
+    text: "Today does not need to be full. It needs to be intentional.",
+    tag: "Less, better",
+  },
+  {
+    text: "Protect the first hour and the rest of the day has a better chance.",
+    tag: "Guard the morning",
+  },
+  {
+    text: "A project moves when the next action is smaller than the excuse.",
+    tag: "Make it smaller",
+  },
+  {
+    text: "Reflection turns experience into guidance instead of noise.",
+    tag: "Reflect",
+  },
+  {
+    text: "The future is negotiated through what you repeat today.",
+    tag: "Repeat well",
+  },
+  {
+    text: "You do not need a dramatic reset. You need one honest next step.",
+    tag: "Next step",
+  },
+  {
+    text: "Attention is a budget. Spend it where the return is real.",
+    tag: "Spend attention",
+  },
+  {
+    text: "A calmer plan usually beats a louder one.",
+    tag: "Calm wins",
+  },
+  {
+    text: "The day becomes manageable when every task has a place to land.",
+    tag: "Give it a place",
+  },
+  {
+    text: "Track what you want to trust yourself with.",
+    tag: "Build trust",
+  },
+  {
+    text: "A habit is a vote you cast before the day starts negotiating.",
+    tag: "Vote early",
+  },
+  {
+    text: "Momentum is earned by closing loops, not collecting intentions.",
+    tag: "Close loops",
+  },
+  {
+    text: "Your goals need evidence. Give them one small proof today.",
+    tag: "Create proof",
+  },
+  {
+    text: "The right list should make action feel closer, not farther away.",
+    tag: "Useful lists",
+  },
+  {
+    text: "Start with the task that will make everything else feel less heavy.",
+    tag: "Lighten the day",
+  },
+];
 
 const defaultState: AppState = {
   focus: "Win the day by finishing the one thing that matters most",
@@ -220,6 +349,14 @@ function clamp(value: number, min = 0, max = 100) {
   return Math.min(max, Math.max(min, value));
 }
 
+function getDailyQuote(date: Date) {
+  const dayNumber = Math.floor(
+    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / MS_PER_DAY,
+  );
+
+  return dailyQuotes[dayNumber % dailyQuotes.length];
+}
+
 export default function Home() {
   const [taskDraft, setTaskDraft] = useState("");
   const stateSnapshot = useSyncExternalStore(
@@ -241,6 +378,7 @@ export default function Home() {
       }).format(new Date()),
     [],
   );
+  const dailyQuote = useMemo(() => getDailyQuote(new Date()), []);
 
   const stats = useMemo(() => {
     const completedTasks = state.tasks.filter((task) => task.done).length;
@@ -366,17 +504,14 @@ export default function Home() {
 
         <section className="morning-board" aria-label="Morning dashboard summary">
           <div className="focus-editor">
-            <label htmlFor="daily-focus">Daily intention</label>
-            <input
-              id="daily-focus"
-              value={state.focus}
-              onChange={(event) =>
-                updateState((current) => ({
-                  ...current,
-                  focus: event.target.value,
-                }))
-              }
-            />
+            <div className="quote-label">
+              <span>Daily quote</span>
+              <em>Refreshes every day</em>
+            </div>
+            <blockquote className="daily-quote">
+              <p>{dailyQuote.text}</p>
+              <cite>{dailyQuote.tag}</cite>
+            </blockquote>
             <p>{encouragement[state.mood]}</p>
           </div>
 
