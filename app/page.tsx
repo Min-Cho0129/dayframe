@@ -65,101 +65,101 @@ type AppState = {
   note: string;
 };
 
-const STORAGE_KEY = "haru-start-app-v1";
+const STORAGE_KEY = "dayframe-app-v2";
 const storeListeners = new Set<() => void>();
 
 const defaultState: AppState = {
-  focus: "가장 중요한 일 하나를 끝내는 하루",
+  focus: "Win the day by finishing the one thing that matters most",
   energy: 4,
   mood: "clear",
   tasks: [
     {
       id: "task-1",
-      title: "오늘 반드시 끝낼 핵심 업무 정하기",
-      area: "집중",
+      title: "Choose the one critical task for today",
+      area: "Focus",
       done: false,
     },
     {
       id: "task-2",
-      title: "프로젝트 다음 행동 1개 실행",
-      area: "프로젝트",
+      title: "Move one active project forward",
+      area: "Project",
       done: false,
     },
     {
       id: "task-3",
-      title: "저녁 10분 회고 남기기",
-      area: "회고",
+      title: "Write a 10-minute evening reflection",
+      area: "Review",
       done: false,
     },
   ],
   habits: [
     {
       id: "habit-1",
-      name: "물 한 잔",
+      name: "Drink water",
       streak: 12,
-      target: "기상 후",
+      target: "After waking",
       doneToday: true,
     },
     {
       id: "habit-2",
-      name: "20분 걷기",
+      name: "Walk 20 min",
       streak: 5,
-      target: "점심 전",
+      target: "Before lunch",
       doneToday: false,
     },
     {
       id: "habit-3",
-      name: "독서 10쪽",
+      name: "Read 10 pages",
       streak: 8,
-      target: "잠들기 전",
+      target: "Before bed",
       doneToday: false,
     },
   ],
   goals: [
     {
       id: "goal-1",
-      title: "몸과 집중력을 회복하는 루틴 만들기",
-      horizon: "이번 달",
+      title: "Build a routine that restores energy and focus",
+      horizon: "This month",
       progress: 64,
     },
     {
       id: "goal-2",
-      title: "주요 프로젝트 MVP 출시",
-      horizon: "이번 분기",
+      title: "Launch the MVP for the main project",
+      horizon: "This quarter",
       progress: 38,
     },
   ],
   projects: [
     {
       id: "project-1",
-      name: "개인 생산성 시스템",
-      stage: "설계",
+      name: "Personal productivity system",
+      stage: "Design",
       progress: 46,
-      nextAction: "아침 루틴 템플릿 정리",
+      nextAction: "Refine the morning routine template",
     },
     {
       id: "project-2",
-      name: "포트폴리오 개선",
-      stage: "실행",
+      name: "Portfolio refresh",
+      stage: "Execution",
       progress: 72,
-      nextAction: "대표 사례 문장 다듬기",
+      nextAction: "Rewrite the featured case study copy",
     },
   ],
   journal:
-    "오늘의 기준은 완벽함이 아니라 시작이다. 첫 30분에 속도를 만들자.",
-  note: "기억할 것: 해야 할 일을 줄이면 실행력이 올라간다.",
+    "Today is not about being perfect. It is about starting clean and creating momentum in the first 30 minutes.",
+  note: "Remember: fewer commitments make execution easier.",
 };
 
 const moodLabels: Record<Mood, string> = {
-  calm: "차분",
-  clear: "명료",
-  bold: "도전",
+  calm: "Calm",
+  clear: "Clear",
+  bold: "Bold",
 };
 
 const encouragement: Record<Mood, string> = {
-  calm: "속도를 낮추고, 가장 작은 다음 행동부터.",
-  clear: "오늘의 기준이 분명하면 에너지가 덜 새어 나갑니다.",
-  bold: "시작 전 망설임보다 실행 후 조정이 빠릅니다.",
+  calm: "Slow the pace and start with the smallest next action.",
+  clear: "A clear standard keeps your energy from leaking.",
+  bold: "Adjusting after action is faster than waiting before it.",
 };
 
 function normalizeState(value: Partial<AppState>): AppState {
@@ -234,7 +234,7 @@ export default function Home() {
 
   const todayLabel = useMemo(
     () =>
-      new Intl.DateTimeFormat("ko-KR", {
+      new Intl.DateTimeFormat("en-US", {
         month: "long",
         day: "numeric",
         weekday: "long",
@@ -279,7 +279,7 @@ export default function Home() {
         {
           id: `task-${Date.now()}`,
           title,
-          area: "오늘",
+          area: "Today",
           done: false,
         },
         ...current.tasks,
@@ -332,21 +332,21 @@ export default function Home() {
 
   return (
     <main className="app-shell">
-      <aside className="side-rail" aria-label="주요 메뉴">
+      <aside className="side-rail" aria-label="Primary navigation">
         <div className="brand-mark" aria-hidden="true">
           <Sunrise size={22} strokeWidth={2.2} />
         </div>
         <nav className="rail-nav">
-          <a href="#today" aria-label="오늘">
+          <a href="#today" aria-label="Today">
             <CalendarDays size={19} />
           </a>
-          <a href="#tasks" aria-label="할 일">
+          <a href="#tasks" aria-label="Tasks">
             <ListChecks size={19} />
           </a>
-          <a href="#goals" aria-label="목표">
+          <a href="#goals" aria-label="Goals">
             <Target size={19} />
           </a>
-          <a href="#journal" aria-label="저널">
+          <a href="#journal" aria-label="Journal">
             <NotebookPen size={19} />
           </a>
         </nav>
@@ -356,17 +356,17 @@ export default function Home() {
         <header className="topbar" id="today">
           <div>
             <p className="eyebrow">{todayLabel}</p>
-            <h1>하루 시작</h1>
+            <h1>Dayframe</h1>
           </div>
           <div className="sync-pill">
             <Check size={16} />
-            저장됨
+            Saved
           </div>
         </header>
 
-        <section className="morning-board" aria-label="오늘의 시작 요약">
+        <section className="morning-board" aria-label="Morning dashboard summary">
           <div className="focus-editor">
-            <label htmlFor="daily-focus">오늘의 한 문장</label>
+            <label htmlFor="daily-focus">Daily intention</label>
             <input
               id="daily-focus"
               value={state.focus}
@@ -380,19 +380,19 @@ export default function Home() {
             <p>{encouragement[state.mood]}</p>
           </div>
 
-          <div className="momentum-meter" aria-label={`추진력 ${stats.momentum}%`}>
+          <div className="momentum-meter" aria-label={`Momentum ${stats.momentum}%`}>
             <div
               className="meter-fill"
               style={{ width: `${stats.momentum}%` }}
             />
             <div className="meter-copy">
-              <span>오늘의 추진력</span>
+              <span>Today&apos;s momentum</span>
               <strong>{stats.momentum}%</strong>
             </div>
           </div>
 
           <div className="energy-control">
-            <label htmlFor="energy">에너지</label>
+            <label htmlFor="energy">Energy</label>
             <input
               id="energy"
               type="range"
@@ -409,7 +409,7 @@ export default function Home() {
             <span>{state.energy}/5</span>
           </div>
 
-          <div className="mood-switcher" aria-label="오늘의 태도">
+          <div className="mood-switcher" aria-label="Daily mindset">
             {(Object.keys(moodLabels) as Mood[]).map((mood) => (
               <button
                 className={state.mood === mood ? "active" : ""}
@@ -428,20 +428,20 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="stat-grid" aria-label="오늘의 상태">
+        <section className="stat-grid" aria-label="Daily status">
           <StatusTile
             icon={<ClipboardList size={20} />}
-            label="할 일"
+            label="Tasks"
             value={`${stats.completedTasks}/${stats.totalTasks}`}
           />
           <StatusTile
             icon={<Flame size={20} />}
-            label="습관"
+            label="Habits"
             value={`${stats.completedHabits}/${stats.totalHabits}`}
           />
           <StatusTile
             icon={<TrendingUp size={20} />}
-            label="목표 평균"
+            label="Goal average"
             value={`${Math.round(
               state.goals.reduce((sum, goal) => sum + goal.progress, 0) /
                 Math.max(state.goals.length, 1),
@@ -449,8 +449,8 @@ export default function Home() {
           />
           <StatusTile
             icon={<Gauge size={20} />}
-            label="프로젝트"
-            value={`${state.projects.length}개`}
+            label="Projects"
+            value={`${state.projects.length}`}
           />
         </section>
 
@@ -459,19 +459,19 @@ export default function Home() {
             <div className="panel-heading">
               <div>
                 <p className="eyebrow">Daily command</p>
-                <h2>오늘 할 일</h2>
+                <h2>Today&apos;s tasks</h2>
               </div>
               <Sparkles size={20} />
             </div>
 
             <form className="task-form" onSubmit={addTask}>
               <input
-                aria-label="새 할 일"
+                aria-label="New task"
                 onChange={(event) => setTaskDraft(event.target.value)}
-                placeholder="지금 떠오른 일"
+                placeholder="Add a task that just came to mind"
                 value={taskDraft}
               />
-              <button aria-label="할 일 추가" type="submit">
+              <button aria-label="Add task" type="submit">
                 <Plus size={18} />
               </button>
             </form>
@@ -496,7 +496,7 @@ export default function Home() {
             <div className="panel-heading">
               <div>
                 <p className="eyebrow">Streak builder</p>
-                <h2>습관 추적</h2>
+                <h2>Habit tracker</h2>
               </div>
               <TimerReset size={20} />
             </div>
@@ -514,7 +514,7 @@ export default function Home() {
                   </span>
                   <strong>{habit.name}</strong>
                   <span>{habit.target}</span>
-                  <em>{habit.streak}일</em>
+                  <em>{habit.streak} days</em>
                 </button>
               ))}
             </div>
@@ -524,7 +524,7 @@ export default function Home() {
             <div className="panel-heading">
               <div>
                 <p className="eyebrow">North stars</p>
-                <h2>목표 설정</h2>
+                <h2>Goals</h2>
               </div>
               <Target size={20} />
             </div>
@@ -539,7 +539,7 @@ export default function Home() {
                   <label>
                     <span>{goal.progress}%</span>
                     <input
-                      aria-label={`${goal.title} 진행률`}
+                      aria-label={`${goal.title} progress`}
                       max="100"
                       min="0"
                       onChange={(event) =>
@@ -558,7 +558,7 @@ export default function Home() {
             <div className="panel-heading">
               <div>
                 <p className="eyebrow">Project flow</p>
-                <h2>프로젝트 관리</h2>
+                <h2>Projects</h2>
               </div>
               <FolderKanban size={20} />
             </div>
@@ -573,7 +573,7 @@ export default function Home() {
                   </div>
                   <div className="project-actions">
                     <button
-                      aria-label={`${project.name} 진행률 줄이기`}
+                      aria-label={`Decrease ${project.name} progress`}
                       onClick={() => updateProject(project.id, project.progress - 5)}
                       type="button"
                     >
@@ -581,7 +581,7 @@ export default function Home() {
                     </button>
                     <span>{project.progress}%</span>
                     <button
-                      aria-label={`${project.name} 진행률 올리기`}
+                      aria-label={`Increase ${project.name} progress`}
                       onClick={() => updateProject(project.id, project.progress + 5)}
                       type="button"
                     >
@@ -600,13 +600,13 @@ export default function Home() {
             <div className="panel-heading">
               <div>
                 <p className="eyebrow">Notes and journal</p>
-                <h2>노트 & 저널</h2>
+                <h2>Notes &amp; journal</h2>
               </div>
               <NotebookPen size={20} />
             </div>
 
             <label className="text-field">
-              <span>아침 저널</span>
+              <span>Morning journal</span>
               <textarea
                 onChange={(event) =>
                   updateState((current) => ({
@@ -619,7 +619,7 @@ export default function Home() {
             </label>
 
             <label className="text-field">
-              <span>빠른 노트</span>
+              <span>Quick note</span>
               <textarea
                 onChange={(event) =>
                   updateState((current) => ({

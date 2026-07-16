@@ -31,15 +31,16 @@ test("server-renders the morning productivity app", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /<html lang="ko">/i);
-  assert.match(html, /<title>하루 시작<\/title>/i);
-  assert.match(html, /아침 생산성 앱/);
-  assert.match(html, /오늘 할 일/);
-  assert.match(html, /습관 추적/);
-  assert.match(html, /목표 설정/);
-  assert.match(html, /프로젝트 관리/);
-  assert.match(html, /노트 &amp; 저널/);
-  assert.match(html, /오늘의 추진력/);
+  assert.match(html, /<html lang="en">/i);
+  assert.match(html, /<title>Dayframe<\/title>/i);
+  assert.match(html, /morning productivity dashboard/i);
+  assert.match(html, /Today&#x27;s tasks/);
+  assert.match(html, /Habit tracker/);
+  assert.match(html, /Goals/);
+  assert.match(html, /Projects/);
+  assert.match(html, /Notes &amp; journal/);
+  assert.match(html, /Today&#x27;s momentum/);
+  assert.doesNotMatch(html, /[가-힣]/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|react-loading-skeleton/i);
 });
 
@@ -52,9 +53,11 @@ test("keeps starter preview code out of the app surface", async () => {
   ]);
 
   assert.deepEqual(previewFiles, []);
-  assert.match(page, /haru-start-app-v1/);
+  assert.match(page, /dayframe-app-v2/);
   assert.match(page, /useSyncExternalStore/);
-  assert.match(layout, /title:\s*"하루 시작"/);
+  assert.match(layout, /title:\s*"Dayframe"/);
+  assert.doesNotMatch(page, /[가-힣]/);
+  assert.doesNotMatch(layout, /[가-힣]/);
   assert.doesNotMatch(page, /SkeletonPreview|react-loading-skeleton|codex-preview/);
   assert.doesNotMatch(layout, /Starter Project|codex-preview|_sites-preview/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);

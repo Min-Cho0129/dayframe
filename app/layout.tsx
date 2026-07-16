@@ -2,18 +2,20 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "하루 시작",
-  description: "할 일, 목표, 습관, 프로젝트, 노트와 저널을 한 곳에서 정리하는 아침 생산성 앱.",
+  title: "Dayframe",
+  description:
+    "A morning productivity dashboard for tasks, goals, habits, projects, notes, and journaling.",
   openGraph: {
-    title: "하루 시작",
+    title: "Dayframe",
     description:
-      "아침 루틴을 정리하고 오늘의 실행력을 높이는 개인 생산성 대시보드.",
+      "Frame your day with a focused morning dashboard for planning, routines, and reflection.",
     type: "website",
   },
   twitter: {
     card: "summary",
-    title: "하루 시작",
-    description: "오늘의 할 일, 목표, 습관, 프로젝트, 저널을 한 화면에서 정리하세요.",
+    title: "Dayframe",
+    description:
+      "Plan tasks, track habits, move projects forward, and journal from one focused dashboard.",
   },
   icons: {
     icon: "/favicon.svg",
@@ -27,7 +29,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko">
+    <html lang="en">
       <body>{children}</body>
     </html>
   );
