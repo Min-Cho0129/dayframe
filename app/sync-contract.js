@@ -1,11 +1,14 @@
 const SYNC_SCHEMA_VERSION = 1;
 const MAX_SYNC_JSON_BYTES = 240_000;
 
-export function getSyncCapabilities() {
+export function getSyncCapabilities(options = {}) {
+  const persisted = Boolean(options.persisted);
+
   return {
     schemaVersion: SYNC_SCHEMA_VERSION,
-    mode: "contract-only",
-    persisted: false,
+    mode: persisted ? "persisted" : "contract-only",
+    persisted,
+    storageProvider: cleanText(options.storageProvider, 60) || null,
     supports: ["daily-state", "planning-memory"],
   };
 }

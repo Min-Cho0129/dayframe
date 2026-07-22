@@ -11,6 +11,7 @@ test("describes the current sync contract capabilities", () => {
   assert.equal(capabilities.schemaVersion, 1);
   assert.equal(capabilities.mode, "contract-only");
   assert.equal(capabilities.persisted, false);
+  assert.equal(capabilities.storageProvider, null);
   assert.deepEqual(capabilities.supports, ["daily-state", "planning-memory"]);
 });
 

@@ -4,7 +4,8 @@ Dayframe is a daily planning app for time-blocked tasks, goals, habits,
 projects, notes, journaling, and a rotating daily quote.
 
 The current app stores user data in the browser with `localStorage`, so it can
-run on Vercel without a backend or database.
+run on Vercel without a backend or database. Optional server persistence can be
+enabled with Upstash Redis REST environment variables.
 
 ## Product Scope
 
@@ -35,13 +36,29 @@ The app now includes a server-side sync contract and database schema foundation:
 
 - `app/api/sync/route.ts` validates sync payloads for the current day state and planning memory.
 - `app/sync-contract.js` normalizes the sync payload shape shared by tests and routes.
+- `app/sync-storage.js` persists accepted sync payloads when storage is configured.
 - `app/page.tsx` sends the local day state and planning memory to `/api/sync` for automatic and manual validation.
 - `db/schema.ts` defines future user profile, daily state, and planning memory tables.
 
-The current `/api/sync` endpoint is intentionally `contract-only`; it accepts and
-validates payloads but does not persist them yet. The app labels this as sync
-validation, not server storage. The next backend step is adding authentication
-and wiring the validated payload into the database tables.
+The `/api/sync` endpoint stays `contract-only` when storage is not configured.
+When `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are set, accepted
+payloads are stored through the Upstash Redis REST pipeline API. Account sync is
+preferred when ChatGPT authentication headers are present. Anonymous device sync
+is disabled by default and can be enabled for demos with
+`DAYFRAME_ALLOW_ANONYMOUS_SYNC=true`.
+
+## Optional Server Persistence
+
+Set these Vercel environment variables to make `/api/sync` store accepted
+snapshots:
+
+- `UPSTASH_REDIS_REST_URL`
+- `UPSTASH_REDIS_REST_TOKEN`
+
+Optional:
+
+- `DAYFRAME_ALLOW_ANONYMOUS_SYNC=true`: stores snapshots by the browser device id
+  when no authenticated account is available.
 
 ## Deploy On Vercel
 
@@ -58,6 +75,13 @@ Optional AI planning variables:
 
 - `OPENAI_API_KEY`: enables the OpenAI-backed planner.
 - `OPENAI_MODEL`: overrides the default planning model. If unset, the app uses `gpt-5-mini`.
+
+Optional persistence variables:
+
+- `UPSTASH_REDIS_REST_URL`: enables server-side sync storage.
+- `UPSTASH_REDIS_REST_TOKEN`: authorizes writes to the Upstash REST API.
+- `DAYFRAME_ALLOW_ANONYMOUS_SYNC`: set to `true` only if you want device-id
+  based demo storage without an authenticated account.
 
 Without `OPENAI_API_KEY`, Dayframe still returns a local draft plan so the UI can
 be tested without external API access.

@@ -78,6 +78,7 @@ test("keeps starter preview code out of the app surface", async () => {
     packageJson,
     syncRoute,
     syncContract,
+    syncStorage,
     dbSchema,
     previewFiles,
   ] =
@@ -87,6 +88,7 @@ test("keeps starter preview code out of the app surface", async () => {
       readFile(new URL("../package.json", import.meta.url), "utf8"),
       readFile(new URL("../app/api/sync/route.ts", import.meta.url), "utf8"),
       readFile(new URL("../app/sync-contract.js", import.meta.url), "utf8"),
+      readFile(new URL("../app/sync-storage.js", import.meta.url), "utf8"),
       readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
       readdir(previewRoot),
     ]);
@@ -132,7 +134,11 @@ test("keeps starter preview code out of the app surface", async () => {
   assert.match(page, /Validate sync now/);
   assert.match(page, /\/api\/sync/);
   assert.match(syncRoute, /normalizeSyncPayload/);
+  assert.match(syncRoute, /persistSyncSnapshot/);
   assert.match(syncContract, /contract-only/);
+  assert.match(syncStorage, /UPSTASH_REDIS_REST_URL/);
+  assert.match(syncStorage, /buildUpstashSyncCommands/);
+  assert.match(syncStorage, /anonymousDeviceSync/);
   assert.match(dbSchema, /userProfiles/);
   assert.match(dbSchema, /dailyStates/);
   assert.match(dbSchema, /planningMemories/);
