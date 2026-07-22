@@ -39,6 +39,7 @@ test("server-renders the morning productivity app", async () => {
   assert.match(html, /Today&#x27;s priority/);
   assert.match(html, /No priority selected yet/);
   assert.match(html, /Today&#x27;s schedule/);
+  assert.match(html, /Auto-space schedule/);
   assert.match(html, /Schedule check/);
   assert.match(html, /Add times to tasks to check conflicts and workload/);
   assert.match(html, /Habit tracker/);
@@ -78,6 +79,9 @@ test("keeps starter preview code out of the app surface", async () => {
   assert.match(page, /dailyQuotes/);
   assert.match(page, /getDailyQuote/);
   assert.match(page, /getScheduleInsights/);
+  assert.match(page, /compareScheduledTasks/);
+  assert.match(page, /autoSpaceSchedule/);
+  assert.match(page, /formatMinutesAsInputTime/);
   assert.match(page, /Time overlap/);
   assert.match(page, /Heavy plan/);
   assert.match(page, /generatePlan/);

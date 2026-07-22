@@ -771,6 +771,15 @@ function compareTasks(a: Task, b: Task) {
   return a.title.localeCompare(b.title);
 }
 
+function compareScheduledTasks(a: Task, b: Task) {
+  if (a.scheduledTime && b.scheduledTime) {
+    const timeOrder = a.scheduledTime.localeCompare(b.scheduledTime);
+    if (timeOrder !== 0) return timeOrder;
+  }
+  if (a.done !== b.done) return a.done ? 1 : -1;
+  return a.title.localeCompare(b.title);
+}
+
 function formatTimeLabel(time: string) {
   if (!time) return "Unscheduled";
   const [hour, minute] = time.split(":").map(Number);
@@ -789,6 +798,15 @@ function formatMinutesAsTimeLabel(totalMinutes: number) {
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(2026, 0, 1, hour, minute));
+}
+
+function formatMinutesAsInputTime(totalMinutes: number) {
+  const normalized =
+    ((totalMinutes % MINUTES_PER_DAY) + MINUTES_PER_DAY) % MINUTES_PER_DAY;
+  const hour = String(Math.floor(normalized / 60)).padStart(2, "0");
+  const minute = String(normalized % 60).padStart(2, "0");
+
+  return `${hour}:${minute}`;
 }
 
 function formatDuration(minutes: number) {
@@ -1095,7 +1113,17 @@ export default function Home() {
     [criticalTask?.id, state.tasks],
   );
   const scheduledTasks = useMemo(
-    () => [...state.tasks].filter((task) => task.scheduledTime).sort(compareTasks),
+    () =>
+      [...state.tasks]
+        .filter((task) => task.scheduledTime)
+        .sort(compareScheduledTasks),
+    [state.tasks],
+  );
+  const autoSpaceableTasks = useMemo(
+    () =>
+      state.tasks.filter(
+        (task) => !task.done && parseScheduleMinutes(task.scheduledTime) !== null,
+      ),
     [state.tasks],
   );
   const scheduleInsights = useMemo(
@@ -1447,6 +1475,41 @@ export default function Home() {
         ),
       }),
       "Task updated.",
+    );
+    cancelTaskEdit();
+  }
+
+  function autoSpaceSchedule() {
+    const scheduledBlocks = readStoredState()
+      .tasks.filter(
+        (task) => !task.done && parseScheduleMinutes(task.scheduledTime) !== null,
+      )
+      .map((task) => ({
+        task,
+        start: parseScheduleMinutes(task.scheduledTime) ?? 0,
+      }))
+      .sort((a, b) => a.start - b.start);
+
+    if (scheduledBlocks.length < 2) return;
+
+    const nextTimes = new Map<string, string>();
+    let cursor = scheduledBlocks[0].start;
+
+    for (const block of scheduledBlocks) {
+      nextTimes.set(block.task.id, formatMinutesAsInputTime(cursor));
+      cursor += clampMinutes(block.task.durationMinutes) + 10;
+    }
+
+    updateState(
+      (current) => ({
+        ...current,
+        tasks: current.tasks.map((task) =>
+          nextTimes.has(task.id)
+            ? { ...task, scheduledTime: nextTimes.get(task.id) ?? task.scheduledTime }
+            : task,
+        ),
+      }),
+      "Schedule auto-spaced.",
     );
     cancelTaskEdit();
   }
@@ -2172,9 +2235,20 @@ export default function Home() {
             )}
 
             <section className="schedule-block" aria-labelledby="schedule-heading">
-              <div className="compact-heading">
-                <Clock3 size={17} />
-                <h3 id="schedule-heading">Today&apos;s schedule</h3>
+              <div className="schedule-header">
+                <div className="compact-heading">
+                  <Clock3 size={17} />
+                  <h3 id="schedule-heading">Today&apos;s schedule</h3>
+                </div>
+                <button
+                  className="secondary-button"
+                  disabled={autoSpaceableTasks.length < 2}
+                  onClick={autoSpaceSchedule}
+                  type="button"
+                >
+                  <Clock3 size={16} />
+                  Auto-space schedule
+                </button>
               </div>
               {scheduledTasks.length ? (
                 <ol className="schedule-list">
