@@ -10,6 +10,7 @@ run on Vercel without a backend or database.
 
 - Plan today with one critical task, a start time, estimated duration, and intention.
 - Add tasks with scheduled time, duration, and priority.
+- Start from a blank first-run state instead of seeded demo goals or projects.
 - Review a visible daily schedule instead of only a status dashboard.
 - Track habits with today completion and streak labels.
 - See how momentum is calculated from tasks, habits, and daily check-in.

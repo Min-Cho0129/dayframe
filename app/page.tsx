@@ -103,6 +103,22 @@ type TaskDraft = {
   priority: Priority;
 };
 
+type HabitDraft = {
+  name: string;
+  target: string;
+};
+
+type GoalDraft = {
+  title: string;
+  horizon: string;
+};
+
+type ProjectDraft = {
+  name: string;
+  stage: string;
+  nextAction: string;
+};
+
 type TodaySnapshot = {
   dateKey: string;
   label: string;
@@ -113,8 +129,8 @@ type UndoState = {
   previous: AppState;
 };
 
-const BASE_STORAGE_KEY = "dayframe-app-v3";
-const LEGACY_STORAGE_KEY = "dayframe-app-v2";
+const BASE_STORAGE_KEY = "dayframe-app-v4";
+const STALE_STORAGE_PREFIXES = ["dayframe-app-v3:", "dayframe-app-v2"];
 const storeListeners = new Set<() => void>();
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -242,97 +258,16 @@ const dailyQuotes: DailyQuote[] = [
 ];
 
 const defaultState: AppState = {
-  focus: "Win the day by finishing the one thing that matters most",
-  energy: 4,
+  focus: "",
+  energy: 3,
   mood: "clear",
-  tasks: [
-    {
-      id: "task-1",
-      title: "Choose the one critical task for today",
-      area: "Focus",
-      done: false,
-      scheduledTime: "09:00",
-      durationMinutes: 90,
-      priority: "high",
-      isCritical: true,
-    },
-    {
-      id: "task-2",
-      title: "Move one active project forward",
-      area: "Project",
-      done: false,
-      scheduledTime: "11:00",
-      durationMinutes: 45,
-      priority: "medium",
-      projectId: "project-1",
-    },
-    {
-      id: "task-3",
-      title: "Write a 10-minute evening reflection",
-      area: "Review",
-      done: false,
-      scheduledTime: "20:30",
-      durationMinutes: 10,
-      priority: "low",
-    },
-  ],
-  habits: [
-    {
-      id: "habit-1",
-      name: "Drink water",
-      streak: 12,
-      target: "After waking",
-      doneToday: true,
-    },
-    {
-      id: "habit-2",
-      name: "Walk 20 min",
-      streak: 5,
-      target: "Before lunch",
-      doneToday: false,
-    },
-    {
-      id: "habit-3",
-      name: "Read 10 pages",
-      streak: 8,
-      target: "Before bed",
-      doneToday: false,
-    },
-  ],
-  goals: [
-    {
-      id: "goal-1",
-      title: "Build a routine that restores energy and focus",
-      horizon: "This month",
-      progress: 64,
-    },
-    {
-      id: "goal-2",
-      title: "Launch the MVP for the main project",
-      horizon: "This quarter",
-      progress: 38,
-    },
-  ],
-  projects: [
-    {
-      id: "project-1",
-      name: "Personal productivity system",
-      stage: "Design",
-      progress: 46,
-      nextAction: "Refine the morning routine template",
-    },
-    {
-      id: "project-2",
-      name: "Portfolio refresh",
-      stage: "Execution",
-      progress: 72,
-      nextAction: "Rewrite the featured case study copy",
-    },
-  ],
-  journal:
-    "Today is not about being perfect. It is about starting clean and creating momentum in the first 30 minutes.",
-  eveningJournal: "What worked today, and what should change tomorrow?",
-  note: "Remember: fewer commitments make execution easier.",
+  tasks: [],
+  habits: [],
+  goals: [],
+  projects: [],
+  journal: "",
+  eveningJournal: "",
+  note: "",
 };
 
 const moodLabels: Record<Mood, string> = {
@@ -430,6 +365,18 @@ function storageKeyForToday() {
   return `${BASE_STORAGE_KEY}:${getLocalDateKey()}`;
 }
 
+function clearStaleDemoStorage() {
+  if (typeof window === "undefined") return;
+
+  for (let index = window.localStorage.length - 1; index >= 0; index -= 1) {
+    const key = window.localStorage.key(index);
+    if (!key) continue;
+    if (STALE_STORAGE_PREFIXES.some((prefix) => key.startsWith(prefix))) {
+      window.localStorage.removeItem(key);
+    }
+  }
+}
+
 function readStoredState(): AppState {
   if (typeof window === "undefined") return defaultState;
 
@@ -437,14 +384,7 @@ function readStoredState(): AppState {
     const saved = window.localStorage.getItem(storageKeyForToday());
     if (saved) return normalizeState(JSON.parse(saved));
 
-    const legacy = window.localStorage.getItem(LEGACY_STORAGE_KEY);
-    if (legacy) {
-      const migrated = normalizeState(JSON.parse(legacy));
-      window.localStorage.setItem(storageKeyForToday(), JSON.stringify(migrated));
-      window.localStorage.removeItem(LEGACY_STORAGE_KEY);
-      return migrated;
-    }
-
+    clearStaleDemoStorage();
     return defaultState;
   } catch {
     return defaultState;
@@ -608,6 +548,19 @@ export default function Home() {
     scheduledTime: "",
     durationMinutes: 30,
     priority: "medium",
+  });
+  const [habitDraft, setHabitDraft] = useState<HabitDraft>({
+    name: "",
+    target: "",
+  });
+  const [goalDraft, setGoalDraft] = useState<GoalDraft>({
+    title: "",
+    horizon: "This month",
+  });
+  const [projectDraft, setProjectDraft] = useState<ProjectDraft>({
+    name: "",
+    stage: "Planning",
+    nextAction: "",
   });
   const [planDraft, setPlanDraft] = useState<PlanDraft>({
     criticalTitle: "",
@@ -808,6 +761,81 @@ export default function Home() {
       durationMinutes: 30,
       priority: "medium",
     });
+  }
+
+  function addHabit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = habitDraft.name.trim();
+    const target = habitDraft.target.trim();
+    if (!name) return;
+
+    updateState(
+      (current) => ({
+        ...current,
+        habits: [
+          ...current.habits,
+          {
+            id: `habit-${Date.now()}`,
+            name,
+            target: target || "Today",
+            streak: 0,
+            doneToday: false,
+          },
+        ],
+      }),
+      "Habit added.",
+    );
+    setHabitDraft({ name: "", target: "" });
+  }
+
+  function addGoal(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const title = goalDraft.title.trim();
+    const horizon = goalDraft.horizon.trim();
+    if (!title) return;
+
+    updateState(
+      (current) => ({
+        ...current,
+        goals: [
+          ...current.goals,
+          {
+            id: `goal-${Date.now()}`,
+            title,
+            horizon: horizon || "This month",
+            progress: 0,
+          },
+        ],
+      }),
+      "Goal added.",
+    );
+    setGoalDraft({ title: "", horizon: "This month" });
+  }
+
+  function addProject(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = projectDraft.name.trim();
+    const stage = projectDraft.stage.trim();
+    const nextAction = projectDraft.nextAction.trim();
+    if (!name) return;
+
+    updateState(
+      (current) => ({
+        ...current,
+        projects: [
+          ...current.projects,
+          {
+            id: `project-${Date.now()}`,
+            name,
+            stage: stage || "Planning",
+            nextAction: nextAction || "Choose the next action",
+            progress: 0,
+          },
+        ],
+      }),
+      "Project added.",
+    );
+    setProjectDraft({ name: "", stage: "Planning", nextAction: "" });
   }
 
   function toggleTask(id: string) {
@@ -1065,7 +1093,7 @@ export default function Home() {
             </blockquote>
             <div className="intention-strip">
               <span>Today&apos;s intention</span>
-              <strong>{state.focus}</strong>
+              <strong>{state.focus || "Set an intention with Plan today."}</strong>
             </div>
           </div>
 
@@ -1263,7 +1291,18 @@ export default function Home() {
                   <span>Done</span>
                 </label>
               </article>
-            ) : null}
+            ) : (
+              <article className="priority-card empty-card">
+                <div>
+                  <p className="eyebrow">Today&apos;s priority</p>
+                  <h3>No priority selected yet</h3>
+                  <span>Use Plan today to choose the one task that matters most.</span>
+                </div>
+                <button className="secondary-button" onClick={openPlanPanel} type="button">
+                  Plan today
+                </button>
+              </article>
+            )}
 
             <section className="schedule-block" aria-labelledby="schedule-heading">
               <div className="compact-heading">
@@ -1285,38 +1324,42 @@ export default function Home() {
               )}
             </section>
 
-            <ul className="task-list" aria-label="Task list">
-              {visibleTasks.map((task) => {
-                const projectName = getProjectName(task.projectId);
-                return (
-                  <li className={`task-row ${task.done ? "done" : ""}`} key={task.id}>
-                    <input
-                      aria-label={`Mark ${task.title} complete`}
-                      checked={task.done}
-                      onChange={() => toggleTask(task.id)}
-                      type="checkbox"
-                    />
-                    <div className="task-copy">
-                      <strong>{task.title}</strong>
-                      <span>{formatTaskMeta(task)}</span>
-                      {projectName ? <small>{projectName}</small> : null}
-                      {task.completedAt ? <small>Completed at {task.completedAt}</small> : null}
-                    </div>
-                    <div className="task-row-actions">
-                      <em>{task.area}</em>
-                      <button
-                        aria-label={`Delete ${task.title}`}
-                        className="icon-button danger-button"
-                        onClick={() => deleteTask(task.id)}
-                        type="button"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+            {visibleTasks.length ? (
+              <ul className="task-list" aria-label="Task list">
+                {visibleTasks.map((task) => {
+                  const projectName = getProjectName(task.projectId);
+                  return (
+                    <li className={`task-row ${task.done ? "done" : ""}`} key={task.id}>
+                      <input
+                        aria-label={`Mark ${task.title} complete`}
+                        checked={task.done}
+                        onChange={() => toggleTask(task.id)}
+                        type="checkbox"
+                      />
+                      <div className="task-copy">
+                        <strong>{task.title}</strong>
+                        <span>{formatTaskMeta(task)}</span>
+                        {projectName ? <small>{projectName}</small> : null}
+                        {task.completedAt ? <small>Completed at {task.completedAt}</small> : null}
+                      </div>
+                      <div className="task-row-actions">
+                        <em>{task.area}</em>
+                        <button
+                          aria-label={`Delete ${task.title}`}
+                          className="icon-button danger-button"
+                          onClick={() => deleteTask(task.id)}
+                          type="button"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="empty-state">No additional tasks yet.</p>
+            )}
           </section>
 
           <section className="panel habit-panel" aria-labelledby="habits-heading">
@@ -1328,26 +1371,58 @@ export default function Home() {
               <TimerReset size={20} />
             </div>
 
-            <ul className="habit-grid">
-              {state.habits.map((habit) => (
-                <li key={habit.id}>
-                  <button
-                    aria-label={`${habit.doneToday ? "Undo" : "Complete"} ${habit.name}`}
-                    className={`habit-card ${habit.doneToday ? "done" : ""}`}
-                    onClick={() => toggleHabit(habit.id)}
-                    type="button"
-                  >
-                    <span className="habit-status">
-                      {habit.doneToday ? <Check size={16} /> : <Circle size={16} />}
-                    </span>
-                    <strong>{habit.name}</strong>
-                    <span>{habit.target}</span>
-                    <em>{habit.streak}-day streak</em>
-                    <small>{habit.doneToday ? "Done today" : "Not done yet"}</small>
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <form className="simple-form" onSubmit={addHabit}>
+              <input
+                aria-label="New habit name"
+                onChange={(event) =>
+                  setHabitDraft((current) => ({
+                    ...current,
+                    name: event.target.value,
+                  }))
+                }
+                placeholder="Habit name"
+                value={habitDraft.name}
+              />
+              <input
+                aria-label="New habit timing"
+                onChange={(event) =>
+                  setHabitDraft((current) => ({
+                    ...current,
+                    target: event.target.value,
+                  }))
+                }
+                placeholder="When"
+                value={habitDraft.target}
+              />
+              <button aria-label="Add habit" type="submit">
+                <Plus size={17} />
+              </button>
+            </form>
+
+            {state.habits.length ? (
+              <ul className="habit-grid">
+                {state.habits.map((habit) => (
+                  <li key={habit.id}>
+                    <button
+                      aria-label={`${habit.doneToday ? "Undo" : "Complete"} ${habit.name}`}
+                      className={`habit-card ${habit.doneToday ? "done" : ""}`}
+                      onClick={() => toggleHabit(habit.id)}
+                      type="button"
+                    >
+                      <span className="habit-status">
+                        {habit.doneToday ? <Check size={16} /> : <Circle size={16} />}
+                      </span>
+                      <strong>{habit.name}</strong>
+                      <span>{habit.target}</span>
+                      <em>{habit.streak}-day streak</em>
+                      <small>{habit.doneToday ? "Done today" : "Not done yet"}</small>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="empty-state">No habits yet. Add one routine to track today.</p>
+            )}
           </section>
 
           <section className="panel" id="goals" aria-labelledby="goals-heading">
@@ -1359,30 +1434,61 @@ export default function Home() {
               <Target size={20} />
             </div>
 
-            <div className="progress-list">
-              {state.goals.map((goal) => (
-                <article className="progress-item" key={goal.id}>
-                  <div>
-                    <span>{goal.horizon}</span>
-                    <strong>{goal.title}</strong>
-                    <small>{goal.progress}% · Manually updated</small>
-                  </div>
-                  <label>
-                    <span>{goal.progress}%</span>
-                    <input
-                      aria-label={`${goal.title} progress`}
-                      max="100"
-                      min="0"
-                      onChange={(event) =>
-                        updateGoal(goal.id, Number(event.target.value))
-                      }
-                      type="range"
-                      value={goal.progress}
-                    />
-                  </label>
-                </article>
-              ))}
-            </div>
+            <form className="simple-form" onSubmit={addGoal}>
+              <input
+                aria-label="New goal title"
+                onChange={(event) =>
+                  setGoalDraft((current) => ({
+                    ...current,
+                    title: event.target.value,
+                  }))
+                }
+                placeholder="Goal title"
+                value={goalDraft.title}
+              />
+              <input
+                aria-label="New goal horizon"
+                onChange={(event) =>
+                  setGoalDraft((current) => ({
+                    ...current,
+                    horizon: event.target.value,
+                  }))
+                }
+                value={goalDraft.horizon}
+              />
+              <button aria-label="Add goal" type="submit">
+                <Plus size={17} />
+              </button>
+            </form>
+
+            {state.goals.length ? (
+              <div className="progress-list">
+                {state.goals.map((goal) => (
+                  <article className="progress-item" key={goal.id}>
+                    <div>
+                      <span>{goal.horizon}</span>
+                      <strong>{goal.title}</strong>
+                      <small>{goal.progress}% · Manually updated</small>
+                    </div>
+                    <label>
+                      <span>{goal.progress}%</span>
+                      <input
+                        aria-label={`${goal.title} progress`}
+                        max="100"
+                        min="0"
+                        onChange={(event) =>
+                          updateGoal(goal.id, Number(event.target.value))
+                        }
+                        type="range"
+                        value={goal.progress}
+                      />
+                    </label>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="empty-state">No goals yet. Add a goal when you are ready.</p>
+            )}
           </section>
 
           <section className="panel" aria-labelledby="projects-heading">
@@ -1394,52 +1500,94 @@ export default function Home() {
               <FolderKanban size={20} />
             </div>
 
-            <div className="project-list">
-              {state.projects.map((project) => (
-                <article className="project-row" key={project.id}>
-                  <div>
-                    <span>{project.stage}</span>
-                    <strong>{project.name}</strong>
-                    <p>Next: {project.nextAction}</p>
-                  </div>
-                  <div className="project-actions">
+            <form className="simple-form project-form" onSubmit={addProject}>
+              <input
+                aria-label="New project name"
+                onChange={(event) =>
+                  setProjectDraft((current) => ({
+                    ...current,
+                    name: event.target.value,
+                  }))
+                }
+                placeholder="Project name"
+                value={projectDraft.name}
+              />
+              <input
+                aria-label="New project stage"
+                onChange={(event) =>
+                  setProjectDraft((current) => ({
+                    ...current,
+                    stage: event.target.value,
+                  }))
+                }
+                value={projectDraft.stage}
+              />
+              <input
+                aria-label="New project next action"
+                onChange={(event) =>
+                  setProjectDraft((current) => ({
+                    ...current,
+                    nextAction: event.target.value,
+                  }))
+                }
+                placeholder="Next action"
+                value={projectDraft.nextAction}
+              />
+              <button aria-label="Add project" type="submit">
+                <Plus size={17} />
+              </button>
+            </form>
+
+            {state.projects.length ? (
+              <div className="project-list">
+                {state.projects.map((project) => (
+                  <article className="project-row" key={project.id}>
+                    <div>
+                      <span>{project.stage}</span>
+                      <strong>{project.name}</strong>
+                      <p>Next: {project.nextAction}</p>
+                    </div>
+                    <div className="project-actions">
+                      <button
+                        aria-label={`Decrease ${project.name} progress`}
+                        onClick={() => updateProject(project.id, project.progress - 5)}
+                        type="button"
+                      >
+                        <ChevronRight className="reverse-icon" size={17} />
+                      </button>
+                      <span>{project.progress}%</span>
+                      <button
+                        aria-label={`Increase ${project.name} progress`}
+                        onClick={() => updateProject(project.id, project.progress + 5)}
+                        type="button"
+                      >
+                        <ChevronRight size={17} />
+                      </button>
+                    </div>
+                    <div
+                      className="track"
+                      role="progressbar"
+                      aria-label={`${project.name} progress`}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={project.progress}
+                    >
+                      <span style={{ width: `${project.progress}%` }} />
+                    </div>
                     <button
-                      aria-label={`Decrease ${project.name} progress`}
-                      onClick={() => updateProject(project.id, project.progress - 5)}
+                      className="project-add-button"
+                      onClick={() => addProjectNextAction(project)}
                       type="button"
                     >
-                      <ChevronRight className="reverse-icon" size={17} />
+                      <Plus size={16} />
+                      Add next action to today
                     </button>
-                    <span>{project.progress}%</span>
-                    <button
-                      aria-label={`Increase ${project.name} progress`}
-                      onClick={() => updateProject(project.id, project.progress + 5)}
-                      type="button"
-                    >
-                      <ChevronRight size={17} />
-                    </button>
-                  </div>
-                  <div
-                    className="track"
-                    role="progressbar"
-                    aria-label={`${project.name} progress`}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuenow={project.progress}
-                  >
-                    <span style={{ width: `${project.progress}%` }} />
-                  </div>
-                  <button
-                    className="project-add-button"
-                    onClick={() => addProjectNextAction(project)}
-                    type="button"
-                  >
-                    <Plus size={16} />
-                    Add next action to today
-                  </button>
-                </article>
-              ))}
-            </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="empty-state">No projects yet. Add a project to connect future tasks.</p>
+            )}
           </section>
 
           <section
