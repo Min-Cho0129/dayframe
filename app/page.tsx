@@ -99,6 +99,15 @@ type AppState = {
   note: string;
 };
 
+type PersistentState = Pick<AppState, "habits" | "goals" | "projects">;
+
+type DailyStoredState = Pick<
+  AppState,
+  "focus" | "energy" | "mood" | "tasks" | "journal" | "eveningJournal" | "note"
+> & {
+  habitCompletions: Record<string, boolean>;
+};
+
 type GeneratedPlanTask = {
   title: string;
   scheduledTime: string;
@@ -224,6 +233,7 @@ type UndoState = {
 };
 
 const BASE_STORAGE_KEY = "dayframe-app-v4";
+const PERSISTENT_STORAGE_KEY = "dayframe:persistent-v1";
 const MEMORY_STORAGE_KEY = "dayframe-memory-v1";
 const DEVICE_STORAGE_KEY = "dayframe-device-id-v1";
 const STALE_STORAGE_PREFIXES = ["dayframe-app-v3:", "dayframe-app-v2"];
@@ -232,6 +242,8 @@ const memoryListeners = new Set<() => void>();
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const MINUTES_PER_DAY = 24 * 60;
 const MEMORY_MAX_DAYS = 14;
+const SCHEDULE_ROUNDING_MINUTES = 15;
+const DEFAULT_DAY_END_MINUTES = 22 * 60;
 
 const dailyQuotes: DailyQuote[] = [
   {
@@ -378,8 +390,8 @@ const emptyPlanGuide: PlanGuideDraft = {
 
 const defaultSyncStatus: SyncStatus = {
   phase: "idle",
-  label: "Saved on this device",
-  detail: "Local save active. Sync validation has not run yet.",
+  label: "Saved locally",
+  detail: "Local save active. Backup validation has not run yet.",
 };
 
 const moodLabels: Record<Mood, string> = {
@@ -489,6 +501,73 @@ function normalizeState(value: Partial<AppState> = {}): AppState {
         : defaultState.eveningJournal,
     note: typeof value.note === "string" ? value.note : defaultState.note,
   };
+}
+
+function normalizePersistentState(value: unknown = {}): PersistentState {
+  const state = normalizeState((isRecord(value) ? value : {}) as Partial<AppState>);
+
+  return {
+    habits: state.habits.map((habit) => ({ ...habit, doneToday: false })),
+    goals: state.goals,
+    projects: state.projects,
+  };
+}
+
+function normalizeDailyStoredState(value: unknown = {}): DailyStoredState {
+  const source = isRecord(value) ? value : {};
+  const state = normalizeState((isRecord(value) ? value : {}) as Partial<AppState>);
+  const habitCompletions = normalizeHabitCompletions(source.habitCompletions);
+
+  if (!Object.keys(habitCompletions).length && Array.isArray(source.habits)) {
+    for (const habit of source.habits) {
+      if (!isRecord(habit) || typeof habit.id !== "string") continue;
+      habitCompletions[habit.id] = Boolean(habit.doneToday);
+    }
+  }
+
+  return {
+    focus: state.focus,
+    energy: state.energy,
+    mood: state.mood,
+    tasks: state.tasks,
+    journal: state.journal,
+    eveningJournal: state.eveningJournal,
+    note: state.note,
+    habitCompletions,
+  };
+}
+
+function extractPersistentState(state: AppState): PersistentState {
+  return {
+    habits: state.habits.map((habit) => ({ ...habit, doneToday: false })),
+    goals: state.goals,
+    projects: state.projects,
+  };
+}
+
+function extractDailyStoredState(state: AppState): DailyStoredState {
+  return {
+    focus: state.focus,
+    energy: state.energy,
+    mood: state.mood,
+    tasks: state.tasks,
+    journal: state.journal,
+    eveningJournal: state.eveningJournal,
+    note: state.note,
+    habitCompletions: Object.fromEntries(
+      state.habits.map((habit) => [habit.id, habit.doneToday]),
+    ),
+  };
+}
+
+function normalizeHabitCompletions(value: unknown): Record<string, boolean> {
+  if (!isRecord(value)) return {};
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([id]) => Boolean(id))
+      .map(([id, done]) => [id, Boolean(done)]),
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -692,6 +771,46 @@ function storageKeyForToday() {
   return `${BASE_STORAGE_KEY}:${getLocalDateKey()}`;
 }
 
+function readDailyStoredState(): DailyStoredState {
+  if (typeof window === "undefined") return extractDailyStoredState(defaultState);
+
+  const saved = window.localStorage.getItem(storageKeyForToday());
+  return saved
+    ? normalizeDailyStoredState(JSON.parse(saved))
+    : extractDailyStoredState(defaultState);
+}
+
+function readPersistentState(): PersistentState {
+  if (typeof window === "undefined") return extractPersistentState(defaultState);
+
+  const saved = window.localStorage.getItem(PERSISTENT_STORAGE_KEY);
+  if (saved) return normalizePersistentState(JSON.parse(saved));
+
+  const legacy = readLegacyPersistentState();
+  if (
+    legacy.habits.length ||
+    legacy.goals.length ||
+    legacy.projects.length
+  ) {
+    window.localStorage.setItem(PERSISTENT_STORAGE_KEY, JSON.stringify(legacy));
+  }
+
+  return legacy;
+}
+
+function readLegacyPersistentState(): PersistentState {
+  if (typeof window === "undefined") return extractPersistentState(defaultState);
+
+  try {
+    const saved = window.localStorage.getItem(storageKeyForToday());
+    if (!saved) return extractPersistentState(defaultState);
+
+    return extractPersistentState(normalizeState(JSON.parse(saved)));
+  } catch {
+    return extractPersistentState(defaultState);
+  }
+}
+
 function getSyncDeviceId() {
   if (typeof window === "undefined") return "server-device";
 
@@ -727,11 +846,19 @@ function readStoredState(): AppState {
   if (typeof window === "undefined") return defaultState;
 
   try {
-    const saved = window.localStorage.getItem(storageKeyForToday());
-    if (saved) return normalizeState(JSON.parse(saved));
-
+    const dailyState = readDailyStoredState();
+    const persistentState = readPersistentState();
+    const habits = persistentState.habits.map((habit) => ({
+      ...habit,
+      doneToday: Boolean(dailyState.habitCompletions[habit.id]),
+    }));
     clearStaleDemoStorage();
-    return defaultState;
+
+    return normalizeState({
+      ...dailyState,
+      ...persistentState,
+      habits,
+    });
   } catch {
     return defaultState;
   }
@@ -762,7 +889,14 @@ function subscribeToStore(listener: () => void) {
 
 function writeStoredState(next: AppState) {
   if (typeof window !== "undefined") {
-    window.localStorage.setItem(storageKeyForToday(), JSON.stringify(next));
+    window.localStorage.setItem(
+      storageKeyForToday(),
+      JSON.stringify(extractDailyStoredState(next)),
+    );
+    window.localStorage.setItem(
+      PERSISTENT_STORAGE_KEY,
+      JSON.stringify(extractPersistentState(next)),
+    );
   }
   storeListeners.forEach((listener) => listener());
 }
@@ -871,6 +1005,16 @@ function formatMinutesAsInputTime(totalMinutes: number) {
   const minute = String(normalized % 60).padStart(2, "0");
 
   return `${hour}:${minute}`;
+}
+
+function getRoundedCurrentScheduleStart() {
+  const date = new Date();
+  const currentMinutes = date.getHours() * 60 + date.getMinutes();
+  const rounded =
+    Math.ceil(currentMinutes / SCHEDULE_ROUNDING_MINUTES) *
+    SCHEDULE_ROUNDING_MINUTES;
+
+  return Math.min(rounded, DEFAULT_DAY_END_MINUTES);
 }
 
 function formatDuration(minutes: number) {
@@ -1226,8 +1370,8 @@ export default function Home() {
     ) => {
       setSyncStatus({
         phase: "syncing",
-        label: "Checking sync",
-        detail: "Validating local day state and planning memory.",
+        label: "Checking backup",
+        detail: "Validating local day state and planning memory for backup.",
       });
 
       try {
@@ -1258,14 +1402,18 @@ export default function Home() {
           throw new Error(result?.error || "Sync validation failed.");
         }
 
-        const storageState = result.sync.persisted
-          ? "Server storage active."
-          : "Server storage pending.";
+        const backupState = result.sync.persisted
+          ? "Server backup stored."
+          : "Server backup not enabled.";
 
         setSyncStatus({
           phase: "validated",
-          label: trigger === "manual" ? "Sync check passed" : "Sync-ready",
-          detail: `Validated ${formatSyncTime(new Date())}. ${storageState}`,
+          label: result.sync.persisted
+            ? "Backup stored"
+            : trigger === "manual"
+              ? "Backup check passed"
+              : "Saved locally",
+          detail: `Checked ${formatSyncTime(new Date())}. ${backupState}`,
           sizeBytes:
             typeof result.sync.sizeBytes === "number"
               ? result.sync.sizeBytes
@@ -1276,7 +1424,7 @@ export default function Home() {
 
         setSyncStatus({
           phase: "error",
-          label: "Sync check failed",
+          label: "Backup unavailable",
           detail:
             error instanceof Error
               ? error.message
@@ -1472,6 +1620,9 @@ export default function Home() {
 
     updateState(
       (current) => {
+        const acceptedTitleKeys = new Set(
+          acceptedTasks.map((task) => task.title.trim().toLowerCase()),
+        );
         const plannedTasks = acceptedTasks.map((task, index) =>
           createTask({
             title: task.title.trim(),
@@ -1482,16 +1633,19 @@ export default function Home() {
             isCritical: task.isCritical || index === 0,
           }),
         );
+        const preservedOpenTasks = current.tasks.filter(
+          (task) => !task.done && !acceptedTitleKeys.has(task.title.trim().toLowerCase()),
+        );
         const completedTasks = current.tasks.filter((task) => task.done);
 
         return {
           ...current,
           energy: planEnergy,
           focus: generatedPlan.intention,
-          tasks: [...plannedTasks, ...completedTasks],
+          tasks: [...plannedTasks, ...preservedOpenTasks, ...completedTasks],
         };
       },
-      "AI plan accepted.",
+      "AI plan merged.",
     );
 
     setPlanOpen(false);
@@ -1776,12 +1930,16 @@ export default function Home() {
           )
           .sort((a, b) => a.start - b.start);
         const nextTimes = new Map<string, string>();
-        let cursor = getDefaultScheduleStart(current.energy);
+        let cursor = Math.max(
+          getDefaultScheduleStart(current.energy),
+          getRoundedCurrentScheduleStart(),
+        );
 
         for (const task of openTasks) {
           const duration = clampMinutes(task.durationMinutes);
           const start = findAvailableScheduleStart(occupiedBlocks, cursor, duration);
           const end = start + duration;
+          if (end > DEFAULT_DAY_END_MINUTES) continue;
 
           nextTimes.set(task.id, formatMinutesAsInputTime(start));
           occupiedBlocks.push({ start, end });
@@ -1798,7 +1956,7 @@ export default function Home() {
           ),
         };
       },
-      "Open tasks scheduled.",
+      "Open tasks scheduled after the current time.",
     );
     cancelTaskEdit();
   }
@@ -2534,6 +2692,15 @@ export default function Home() {
                         <Pencil size={16} />
                         Edit
                       </button>
+                      <button
+                        aria-label={`Delete ${criticalTask.title}`}
+                        className="secondary-button danger-button"
+                        onClick={() => deleteTask(criticalTask.id)}
+                        type="button"
+                      >
+                        <Trash2 size={16} />
+                        Delete
+                      </button>
                       <label>
                         <input
                           checked={criticalTask.done}
@@ -2987,7 +3154,7 @@ export default function Home() {
               </div>
               <div
                 className={`sync-summary ${syncStatus.phase}`}
-                aria-label="Sync validation status"
+                aria-label="Backup validation status"
               >
                 {syncStatus.phase === "error" ? (
                   <CloudOff size={18} />
@@ -3044,7 +3211,7 @@ export default function Home() {
                   type="button"
                 >
                   <Cloud size={17} />
-                  Validate sync now
+                  Validate backup now
                 </button>
                 <button className="secondary-button" onClick={saveDailyReview} type="button">
                   <Sparkles size={17} />

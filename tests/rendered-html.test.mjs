@@ -56,14 +56,14 @@ test("server-renders the morning productivity app", async () => {
   assert.match(html, /Planning memory/);
   assert.match(html, /Daily review for AI planning/);
   assert.match(html, /No carry-over items yet/);
-  assert.match(html, /Sync validation has not run yet/);
-  assert.match(html, /Validate sync now/);
+  assert.match(html, /Backup validation has not run yet/);
+  assert.match(html, /Validate backup now/);
   assert.match(html, /Daily quote/);
   assert.match(html, /Refreshes at local midnight/);
   assert.match(html, /Today&#x27;s momentum/);
   assert.match(html, /How momentum is calculated/);
   assert.match(html, /Energy recommendation/);
-  assert.match(html, /Saved on this device/);
+  assert.match(html, /Saved locally/);
   assert.doesNotMatch(html, /Build a routine that restores energy and focus/);
   assert.doesNotMatch(html, /Portfolio refresh/);
   assert.doesNotMatch(html, /Drink water/);
@@ -95,12 +95,18 @@ test("keeps starter preview code out of the app surface", async () => {
 
   assert.deepEqual(previewFiles, []);
   assert.match(page, /dayframe-app-v4/);
+  assert.match(page, /dayframe:persistent-v1/);
+  assert.match(page, /readPersistentState/);
+  assert.match(page, /extractDailyStoredState/);
+  assert.match(page, /habitCompletions/);
   assert.match(page, /dailyQuotes/);
   assert.match(page, /getDailyQuote/);
   assert.match(page, /getScheduleInsights/);
   assert.match(page, /getDailyTimeline/);
   assert.match(page, /getTimelineSegmentHeight/);
   assert.match(page, /scheduleOpenTasks/);
+  assert.match(page, /getRoundedCurrentScheduleStart/);
+  assert.match(page, /DEFAULT_DAY_END_MINUTES/);
   assert.match(page, /findAvailableScheduleStart/);
   assert.match(page, /getDefaultScheduleStart/);
   assert.match(page, /compareScheduledTasks/);
@@ -110,6 +116,8 @@ test("keeps starter preview code out of the app surface", async () => {
   assert.match(page, /Heavy plan/);
   assert.match(page, /generatePlan/);
   assert.match(page, /acceptGeneratedPlan/);
+  assert.match(page, /preservedOpenTasks/);
+  assert.match(page, /AI plan merged/);
   assert.match(page, /startEditingTask/);
   assert.match(page, /saveTaskEdit/);
   assert.match(page, /task-edit-form/);
@@ -135,7 +143,7 @@ test("keeps starter preview code out of the app surface", async () => {
   assert.match(page, /clearStaleDemoStorage/);
   assert.match(page, /syncCurrentSnapshot/);
   assert.match(page, /dayframe-device-id-v1/);
-  assert.match(page, /Validate sync now/);
+  assert.match(page, /Validate backup now/);
   assert.match(page, /\/api\/sync/);
   assert.match(syncRoute, /normalizeSyncPayload/);
   assert.match(syncRoute, /persistSyncSnapshot/);

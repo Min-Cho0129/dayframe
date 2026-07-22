@@ -13,6 +13,7 @@ enabled with Upstash Redis REST environment variables.
 - Generate a draft plan from natural language with the AI planning flow.
 - Build an AI planning brief from guided fields for fixed events, must-do work, optional work, and constraints.
 - Choose plan-specific energy inside the AI planning flow so generated blocks match the day.
+- Merge accepted AI plans with existing unfinished tasks by default.
 - Edit the AI draft task titles, times, durations, priorities, areas, and critical marker before accepting it.
 - Check the daily schedule for time overlaps, unscheduled work, open space, and workload fit.
 - See scheduled tasks and open gaps in a visual daily timeline.
@@ -27,6 +28,8 @@ enabled with Upstash Redis REST environment variables.
 - See how momentum is calculated from tasks, habits, and daily check-in.
 - Add a project next action directly into today's task list.
 - Store each day by the browser's local date key.
+- Store habits, goals, and projects separately from date-specific daily state.
+- Store habit completion status inside the current day's state.
 - Store planning memory on the same device with `localStorage`.
 - Validate sync-ready daily state and planning memory payloads through `/api/sync`.
 - Show sync validation status in the app before full account-based storage is enabled.
