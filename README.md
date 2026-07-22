@@ -4,35 +4,35 @@ Dayframe is a morning productivity dashboard for tasks, goals, habits,
 projects, notes, journaling, and a rotating daily quote.
 
 The current app stores user data in the browser with `localStorage`, so it can
-run as a static site on GitHub Pages without a backend or database.
+run on Vercel without a backend or database.
 
-## Let People Try It On GitHub Pages
+## Deploy On Vercel
 
-1. Push this repository to GitHub.
-2. In the GitHub repository, go to `Settings` -> `Pages`.
-3. Set `Source` to `GitHub Actions`.
-4. Push to the `main` branch.
+1. Open Vercel and choose `Add New` -> `Project`.
+2. Import the GitHub repository: `Min-Cho0129/dayframe`.
+3. Keep the framework preset as `Next.js`.
+4. Vercel will read `vercel.json` and use `npm run build:vercel`.
+5. Deploy.
 
-The workflow in `.github/workflows/github-pages.yml` will build the static app
-and publish it to GitHub Pages.
+No environment variables are required for the current version. After the project
+is connected, every push to `main` will trigger a new Vercel deployment.
 
-After the workflow finishes, GitHub will show the public Pages URL in the
-workflow summary and in `Settings` -> `Pages`.
+GitHub Actions are not required for this Vercel setup. GitHub Actions are
+automation workflows that run inside GitHub, but Vercel already has its own
+GitHub integration for building and publishing this app.
 
 ## Local Development
 
 ```bash
 npm install
-npm run dev
+npm run dev:vercel
 ```
 
-## Build For GitHub Pages
+## Build For Vercel
 
 ```bash
-npm run build:github-pages
+npm run build:vercel
 ```
-
-The static output is written to `gh-pages-dist/`.
 
 ## Validate The App
 
@@ -44,10 +44,10 @@ npm test
 `npm test` checks both:
 
 - the existing worker build used by the current preview deployment
-- the static GitHub Pages build
+- the Vercel/Next.js production build
 
 ## Current Preview URL
 
 The existing `chatgpt.site` URL was published with Codex Sites for previewing.
-GitHub Pages is now prepared as the simpler sharing path for people to try the
-app from a GitHub repository.
+Vercel is now prepared as the primary sharing path for people to try the app
+from the GitHub repository.
