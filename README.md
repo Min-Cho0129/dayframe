@@ -12,6 +12,7 @@ run on Vercel without a backend or database.
 - Generate a draft plan from natural language with the AI planning flow.
 - Build an AI planning brief from guided fields for fixed events, must-do work, optional work, and constraints.
 - Edit the AI draft task titles, times, durations, priorities, areas, and critical marker before accepting it.
+- Check the daily schedule for time overlaps, unscheduled work, open space, and workload fit.
 - Save a daily review that feeds future AI plans with recent context and carry-over tasks.
 - Add tasks with scheduled time, duration, and priority.
 - Start from a blank first-run state instead of seeded demo goals or projects.

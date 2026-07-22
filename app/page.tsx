@@ -106,6 +106,12 @@ type GeneratedPlan = {
   tasks: GeneratedPlanTask[];
 };
 
+type ScheduleInsight = {
+  level: "ok" | "warning" | "info";
+  label: string;
+  detail: string;
+};
+
 type DailyMemoryEntry = {
   dateKey: string;
   completedTasks: string[];
@@ -183,6 +189,7 @@ const STALE_STORAGE_PREFIXES = ["dayframe-app-v3:", "dayframe-app-v2"];
 const storeListeners = new Set<() => void>();
 const memoryListeners = new Set<() => void>();
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const MINUTES_PER_DAY = 24 * 60;
 const MEMORY_MAX_DAYS = 14;
 
 const dailyQuotes: DailyQuote[] = [
@@ -759,6 +766,15 @@ function formatTimeLabel(time: string) {
   const [hour, minute] = time.split(":").map(Number);
   if (!Number.isFinite(hour) || !Number.isFinite(minute)) return time;
 
+  return formatMinutesAsTimeLabel(hour * 60 + minute);
+}
+
+function formatMinutesAsTimeLabel(totalMinutes: number) {
+  const normalized =
+    ((totalMinutes % MINUTES_PER_DAY) + MINUTES_PER_DAY) % MINUTES_PER_DAY;
+  const hour = Math.floor(normalized / 60);
+  const minute = normalized % 60;
+
   return new Intl.DateTimeFormat("en-US", {
     hour: "numeric",
     minute: "2-digit",
@@ -778,6 +794,119 @@ function formatTaskMeta(task: Task) {
   return `${formatTimeLabel(task.scheduledTime)} · ${formatDuration(
     task.durationMinutes,
   )} · ${priorityLabels[task.priority]}`;
+}
+
+function parseScheduleMinutes(time: string) {
+  const [hour, minute] = time.split(":").map(Number);
+  if (
+    !Number.isInteger(hour) ||
+    !Number.isInteger(minute) ||
+    hour < 0 ||
+    hour > 23 ||
+    minute < 0 ||
+    minute > 59
+  ) {
+    return null;
+  }
+
+  return hour * 60 + minute;
+}
+
+function getScheduleInsights(tasks: Task[], energy: number): ScheduleInsight[] {
+  const activeTasks = tasks.filter((task) => !task.done);
+  const unscheduledCount = activeTasks.filter((task) => !task.scheduledTime).length;
+  const scheduled = activeTasks
+    .map((task) => {
+      const start = parseScheduleMinutes(task.scheduledTime);
+      return start === null
+        ? null
+        : { task, start, end: start + clampMinutes(task.durationMinutes) };
+    })
+    .filter(
+      (item): item is { task: Task; start: number; end: number } => Boolean(item),
+    )
+    .sort((a, b) => a.start - b.start);
+  const insights: ScheduleInsight[] = [];
+
+  if (!scheduled.length) {
+    return [
+      {
+        level: "info",
+        label: "Schedule check",
+        detail: "Add times to tasks to check conflicts and workload.",
+      },
+    ];
+  }
+
+  const overlap = scheduled.find((block, index) => {
+    const previous = scheduled[index - 1];
+    return previous ? block.start < previous.end : false;
+  });
+  const totalMinutes = scheduled.reduce(
+    (sum, block) => sum + clampMinutes(block.task.durationMinutes),
+    0,
+  );
+  const energyCapacity = [0, 120, 180, 270, 360, 450][
+    Math.round(clamp(energy, 1, 5))
+  ];
+  const largestGap = scheduled.slice(1).reduce(
+    (largest, block, index) => {
+      const previous = scheduled[index];
+      const gap = block.start - previous.end;
+      return gap > largest.minutes
+        ? { minutes: gap, start: previous.end, end: block.start }
+        : largest;
+    },
+    { minutes: 0, start: 0, end: 0 },
+  );
+
+  if (overlap) {
+    insights.push({
+      level: "warning",
+      label: "Time overlap",
+      detail: `${overlap.task.title} starts before the previous block ends.`,
+    });
+  } else {
+    insights.push({
+      level: "ok",
+      label: "No overlaps",
+      detail: `${scheduled.length} scheduled block${scheduled.length === 1 ? "" : "s"} are ordered cleanly.`,
+    });
+  }
+
+  if (totalMinutes > energyCapacity) {
+    insights.push({
+      level: "warning",
+      label: "Heavy plan",
+      detail: `${formatDuration(totalMinutes)} scheduled, above today's ${formatDuration(
+        energyCapacity,
+      )} energy budget.`,
+    });
+  } else {
+    insights.push({
+      level: "ok",
+      label: "Workload fit",
+      detail: `${formatDuration(totalMinutes)} scheduled within today's energy budget.`,
+    });
+  }
+
+  if (unscheduledCount) {
+    insights.push({
+      level: "info",
+      label: "Unscheduled tasks",
+      detail: `${unscheduledCount} open task${unscheduledCount === 1 ? "" : "s"} still need a time.`,
+    });
+  } else if (largestGap.minutes >= 45) {
+    insights.push({
+      level: "info",
+      label: "Open space",
+      detail: `${formatDuration(largestGap.minutes)} free between ${formatMinutesAsTimeLabel(
+        largestGap.start,
+      )} and ${formatMinutesAsTimeLabel(largestGap.end)}.`,
+    });
+  }
+
+  return insights.slice(0, 3);
 }
 
 function formatCompletedAt() {
@@ -956,6 +1085,10 @@ export default function Home() {
   const scheduledTasks = useMemo(
     () => [...state.tasks].filter((task) => task.scheduledTime).sort(compareTasks),
     [state.tasks],
+  );
+  const scheduleInsights = useMemo(
+    () => getScheduleInsights(state.tasks, state.energy),
+    [state.energy, state.tasks],
   );
   const energyRecommendation = useMemo(
     () => getEnergyRecommendation(state.energy, state.mood),
@@ -1882,6 +2015,17 @@ export default function Home() {
               ) : (
                 <p className="empty-state">Add a time to a task to build your day.</p>
               )}
+              <div className="schedule-insights" aria-label="Schedule check">
+                {scheduleInsights.map((insight) => (
+                  <article
+                    className={`schedule-insight ${insight.level}`}
+                    key={`${insight.label}-${insight.detail}`}
+                  >
+                    <strong>{insight.label}</strong>
+                    <span>{insight.detail}</span>
+                  </article>
+                ))}
+              </div>
             </section>
 
             {visibleTasks.length ? (

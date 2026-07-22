@@ -1056,6 +1056,48 @@ textarea {
   opacity: 0.58;
 }
 
+.schedule-insights {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.schedule-insight {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  min-height: 78px;
+  padding: 11px 12px;
+}
+
+.schedule-insight strong {
+  font-size: 0.9rem;
+  line-height: 1.25;
+}
+
+.schedule-insight span {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 760;
+  line-height: 1.35;
+}
+
+.schedule-insight.ok {
+  background: #edf7f0;
+  border-color: rgba(24, 119, 101, 0.28);
+}
+
+.schedule-insight.warning {
+  background: #fff1ee;
+  border-color: rgba(225, 95, 79, 0.34);
+}
+
+.schedule-insight.info {
+  background: #f3f7fc;
+  border-color: rgba(47, 111, 186, 0.24);
+}
+
 .empty-state {
   color: var(--muted);
   font-size: 0.9rem;
