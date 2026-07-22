@@ -9,6 +9,7 @@ run on Vercel without a backend or database.
 ## Product Scope
 
 - Plan today with one critical task, a start time, estimated duration, and intention.
+- Generate a draft plan from natural language with the AI planning flow.
 - Add tasks with scheduled time, duration, and priority.
 - Start from a blank first-run state instead of seeded demo goals or projects.
 - Review a visible daily schedule instead of only a status dashboard.
@@ -27,6 +28,14 @@ run on Vercel without a backend or database.
 
 No environment variables are required for the current version. After the project
 is connected, every push to `main` will trigger a new Vercel deployment.
+
+Optional AI planning variables:
+
+- `OPENAI_API_KEY`: enables the OpenAI-backed planner.
+- `OPENAI_MODEL`: overrides the default planning model. If unset, the app uses `gpt-5-mini`.
+
+Without `OPENAI_API_KEY`, Dayframe still returns a local draft plan so the UI can
+be tested without external API access.
 
 GitHub Actions are not required for this Vercel setup. GitHub Actions are
 automation workflows that run inside GitHub, but Vercel already has its own

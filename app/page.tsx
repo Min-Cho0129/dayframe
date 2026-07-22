@@ -88,12 +88,21 @@ type AppState = {
   note: string;
 };
 
-type PlanDraft = {
-  criticalTitle: string;
+type GeneratedPlanTask = {
+  title: string;
   scheduledTime: string;
   durationMinutes: number;
-  extraTask: string;
+  priority: Priority;
+  area: string;
+  isCritical: boolean;
+  rationale: string;
+};
+
+type GeneratedPlan = {
   intention: string;
+  summary: string;
+  source: "openai" | "fallback";
+  tasks: GeneratedPlanTask[];
 };
 
 type TaskDraft = {
@@ -577,13 +586,12 @@ export default function Home() {
     stage: "Planning",
     nextAction: "",
   });
-  const [planDraft, setPlanDraft] = useState<PlanDraft>({
-    criticalTitle: "",
-    scheduledTime: "09:00",
-    durationMinutes: 90,
-    extraTask: "",
-    intention: "",
-  });
+  const [planInput, setPlanInput] = useState("");
+  const [generatedPlan, setGeneratedPlan] = useState<GeneratedPlan | null>(null);
+  const [planStatus, setPlanStatus] = useState<
+    "idle" | "loading" | "ready" | "error"
+  >("idle");
+  const [planError, setPlanError] = useState("");
 
   useEffect(() => {
     let rolloverTimer: number | undefined;
@@ -672,79 +680,97 @@ export default function Home() {
   }
 
   function openPlanPanel() {
-    setPlanDraft({
-      criticalTitle: criticalTask?.title ?? "",
-      scheduledTime: criticalTask?.scheduledTime || "09:00",
-      durationMinutes: criticalTask?.durationMinutes || 90,
-      extraTask: "",
-      intention: state.focus,
-    });
+    setGeneratedPlan(null);
+    setPlanStatus("idle");
+    setPlanError("");
     setPlanOpen(true);
   }
 
-  function submitPlan(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const criticalTitle = planDraft.criticalTitle.trim();
-    const extraTask = planDraft.extraTask.trim();
-    const intention = planDraft.intention.trim();
+  async function generatePlan(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
+    const prompt = planInput.trim();
+    if (!prompt) {
+      setPlanStatus("error");
+      setPlanError("Tell Dayframe what your day looks like first.");
+      return;
+    }
 
-    if (!criticalTitle && !extraTask && !intention) return;
+    setPlanStatus("loading");
+    setPlanError("");
 
-    updateState((current) => {
-      const currentCritical = getCriticalTask(current.tasks);
-      let tasks: Task[] = current.tasks.map((task) => ({
-        ...task,
-        isCritical: task.id === currentCritical?.id,
-      }));
+    try {
+      const response = await fetch("/api/ai-plan", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt,
+          dateKey: today.dateKey,
+          energy: state.energy,
+          mood: state.mood,
+          existingTasks: state.tasks
+            .filter((task) => !task.done)
+            .map((task) => ({
+              title: task.title,
+              scheduledTime: task.scheduledTime,
+              durationMinutes: task.durationMinutes,
+              priority: task.priority,
+            })),
+          projects: state.projects.map((project) => ({
+            name: project.name,
+            nextAction: project.nextAction,
+            progress: project.progress,
+          })),
+          goals: state.goals.map((goal) => ({
+            title: goal.title,
+            progress: goal.progress,
+          })),
+        }),
+      });
+      const result = await response.json();
 
-      if (criticalTitle) {
-        if (currentCritical) {
-          tasks = tasks.map((task) =>
-            task.id === currentCritical.id
-              ? {
-                  ...task,
-                  title: criticalTitle,
-                  area: "Focus",
-                  scheduledTime: planDraft.scheduledTime,
-                  durationMinutes: clampMinutes(planDraft.durationMinutes),
-                  priority: "high",
-                  isCritical: true,
-                }
-              : { ...task, isCritical: false },
-          );
-        } else {
-          tasks = [
-            createTask({
-              title: criticalTitle,
-              area: "Focus",
-              scheduledTime: planDraft.scheduledTime,
-              durationMinutes: clampMinutes(planDraft.durationMinutes),
-              priority: "high",
-              isCritical: true,
-            }),
-            ...tasks.map((task) => ({ ...task, isCritical: false })),
-          ];
-        }
+      if (!response.ok || !result.plan) {
+        throw new Error(result.error || "Dayframe could not generate a plan.");
       }
 
-      if (extraTask) {
-        tasks = [
-          ...tasks,
+      setGeneratedPlan(result.plan as GeneratedPlan);
+      setPlanStatus("ready");
+    } catch (error) {
+      setPlanStatus("error");
+      setPlanError(
+        error instanceof Error
+          ? error.message
+          : "Dayframe could not generate a plan.",
+      );
+    }
+  }
+
+  function acceptGeneratedPlan() {
+    if (!generatedPlan) return;
+
+    updateState(
+      (current) => {
+        const plannedTasks = generatedPlan.tasks.map((task, index) =>
           createTask({
-            title: extraTask,
-            area: "Today",
-            durationMinutes: 30,
-            priority: "medium",
+            title: task.title,
+            area: task.area,
+            scheduledTime: task.scheduledTime,
+            durationMinutes: clampMinutes(task.durationMinutes),
+            priority: task.priority,
+            isCritical: task.isCritical || index === 0,
           }),
-        ];
-      }
+        );
+        const completedTasks = current.tasks.filter((task) => task.done);
 
-      return {
-        ...current,
-        focus: intention || current.focus,
-        tasks,
-      };
-    }, "Plan updated.");
+        return {
+          ...current,
+          focus: generatedPlan.intention,
+          tasks: [...plannedTasks, ...completedTasks],
+        };
+      },
+      "AI plan accepted.",
+    );
 
     setPlanOpen(false);
   }
@@ -984,7 +1010,7 @@ export default function Home() {
           <div className="topbar-actions">
             <button className="primary-cta" onClick={openPlanPanel} type="button">
               <Plus size={18} />
-              Plan today
+              Plan with AI
             </button>
             <div className="sync-pill" role="status" aria-live="polite">
               <Check size={16} />
@@ -1014,85 +1040,83 @@ export default function Home() {
         {planOpen ? (
           <section className="plan-panel" aria-labelledby="plan-heading">
             <div>
-              <p className="eyebrow">Morning planning</p>
-              <h2 id="plan-heading">Plan today</h2>
+              <p className="eyebrow">AI planning</p>
+              <h2 id="plan-heading">Plan with AI</h2>
             </div>
-            <form className="plan-form" onSubmit={submitPlan}>
-              <label>
-                <span>Today&apos;s most important task</span>
-                <input
-                  onChange={(event) =>
-                    setPlanDraft((current) => ({
-                      ...current,
-                      criticalTitle: event.target.value,
-                    }))
-                  }
-                  value={planDraft.criticalTitle}
-                />
-              </label>
-              <label>
-                <span>Start time</span>
-                <input
-                  onChange={(event) =>
-                    setPlanDraft((current) => ({
-                      ...current,
-                      scheduledTime: event.target.value,
-                    }))
-                  }
-                  type="time"
-                  value={planDraft.scheduledTime}
-                />
-              </label>
-              <label>
-                <span>Focus duration</span>
-                <input
-                  min="5"
-                  onChange={(event) =>
-                    setPlanDraft((current) => ({
-                      ...current,
-                      durationMinutes: Number(event.target.value),
-                    }))
-                  }
-                  step="5"
-                  type="number"
-                  value={planDraft.durationMinutes}
-                />
-              </label>
-              <label>
-                <span>Additional task</span>
-                <input
-                  onChange={(event) =>
-                    setPlanDraft((current) => ({
-                      ...current,
-                      extraTask: event.target.value,
-                    }))
-                  }
-                  placeholder="Optional"
-                  value={planDraft.extraTask}
-                />
-              </label>
+            <form className="ai-plan-form" onSubmit={generatePlan}>
               <label className="wide-field">
-                <span>Today&apos;s intention</span>
+                <span>Tell Dayframe what your day looks like</span>
                 <textarea
-                  onChange={(event) =>
-                    setPlanDraft((current) => ({
-                      ...current,
-                      intention: event.target.value,
-                    }))
-                  }
-                  value={planDraft.intention}
+                  onChange={(event) => setPlanInput(event.target.value)}
+                  placeholder="Example: I have class at 2 PM, need to revise my portfolio, want to work out, and my energy is around 3/5."
+                  value={planInput}
                 />
               </label>
+              <div className="ai-context-grid">
+                <span>Energy {state.energy}/5</span>
+                <span>Mood {moodLabels[state.mood]}</span>
+                <span>{stats.totalTasks} open tasks</span>
+                <span>{state.projects.length} projects</span>
+              </div>
+              {planStatus === "error" ? (
+                <p className="form-error" role="alert">
+                  {planError}
+                </p>
+              ) : null}
               <div className="form-actions">
                 <button className="secondary-button" onClick={() => setPlanOpen(false)} type="button">
                   Cancel
                 </button>
-                <button className="primary-cta" type="submit">
-                  <Check size={17} />
-                  Save plan
+                <button
+                  className="primary-cta"
+                  disabled={planStatus === "loading"}
+                  type="submit"
+                >
+                  <Sparkles size={17} />
+                  {planStatus === "loading" ? "Generating..." : "Generate plan"}
                 </button>
               </div>
             </form>
+            {generatedPlan ? (
+              <article className="ai-plan-preview">
+                <div className="preview-heading">
+                  <div>
+                    <p className="eyebrow">Suggested plan</p>
+                    <h3>{generatedPlan.summary}</h3>
+                  </div>
+                  <span>{generatedPlan.source === "openai" ? "AI draft" : "Local draft"}</span>
+                </div>
+                <p>{generatedPlan.intention}</p>
+                <ol className="ai-plan-list">
+                  {generatedPlan.tasks.map((task, index) => (
+                    <li key={`${task.title}-${task.scheduledTime}-${index}`}>
+                      <time>{formatTimeLabel(task.scheduledTime)}</time>
+                      <div>
+                        <strong>{task.title}</strong>
+                        <span>
+                          {formatDuration(task.durationMinutes)} · {priorityLabels[task.priority]} · {task.area}
+                        </span>
+                        <small>{task.rationale}</small>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+                <div className="form-actions">
+                  <button
+                    className="secondary-button"
+                    disabled={planStatus === "loading"}
+                    onClick={() => void generatePlan()}
+                    type="button"
+                  >
+                    Regenerate
+                  </button>
+                  <button className="primary-cta" onClick={acceptGeneratedPlan} type="button">
+                    <Check size={17} />
+                    Accept plan
+                  </button>
+                </div>
+              </article>
+            ) : null}
           </section>
         ) : null}
 
@@ -1108,7 +1132,7 @@ export default function Home() {
             </blockquote>
             <div className="intention-strip">
               <span>Today&apos;s intention</span>
-              <strong>{state.focus || "Set an intention with Plan today."}</strong>
+              <strong>{state.focus || "Use Plan with AI to shape your day."}</strong>
             </div>
           </div>
 
@@ -1311,10 +1335,10 @@ export default function Home() {
                 <div>
                   <p className="eyebrow">Today&apos;s priority</p>
                   <h3>No priority selected yet</h3>
-                  <span>Use Plan today to choose the one task that matters most.</span>
+                  <span>Use Plan with AI to choose the one task that matters most.</span>
                 </div>
                 <button className="secondary-button" onClick={openPlanPanel} type="button">
-                  Plan today
+                  Plan with AI
                 </button>
               </article>
             )}

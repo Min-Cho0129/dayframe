@@ -34,7 +34,7 @@ test("server-renders the morning productivity app", async () => {
   assert.match(html, /<html lang="en">/i);
   assert.match(html, /<title>Dayframe<\/title>/i);
   assert.match(html, /daily planning app/i);
-  assert.match(html, /Plan today/);
+  assert.match(html, /Plan with AI/);
   assert.match(html, /Today&#x27;s tasks/);
   assert.match(html, /Today&#x27;s priority/);
   assert.match(html, /No priority selected yet/);
@@ -72,6 +72,8 @@ test("keeps starter preview code out of the app surface", async () => {
   assert.match(page, /dayframe-app-v4/);
   assert.match(page, /dailyQuotes/);
   assert.match(page, /getDailyQuote/);
+  assert.match(page, /generatePlan/);
+  assert.match(page, /acceptGeneratedPlan/);
   assert.match(page, /getLocalDateKey/);
   assert.match(page, /useSyncExternalStore/);
   assert.match(page, /clearStaleDemoStorage/);
