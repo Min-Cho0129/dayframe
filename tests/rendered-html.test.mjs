@@ -77,6 +77,13 @@ test("keeps starter preview code out of the app surface", async () => {
   assert.match(page, /getDailyQuote/);
   assert.match(page, /generatePlan/);
   assert.match(page, /acceptGeneratedPlan/);
+  assert.match(page, /buildPlanningPrompt/);
+  assert.match(page, /planGuide/);
+  assert.match(page, /Fixed events/);
+  assert.match(page, /Must do/);
+  assert.match(page, /Would like/);
+  assert.match(page, /Constraints/);
+  assert.match(page, /Extra notes/);
   assert.match(page, /dayframe-memory-v1/);
   assert.match(page, /saveDailyReview/);
   assert.match(page, /summarizePlannerMemory/);

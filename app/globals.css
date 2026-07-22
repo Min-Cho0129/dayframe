@@ -297,8 +297,16 @@ h2 {
   grid-column: 1 / -1;
 }
 
+.guide-grid {
+  display: grid;
+  gap: 10px;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .form-actions {
   align-items: center;
+  flex-wrap: wrap;
   display: flex;
   gap: 10px;
   justify-content: flex-end;
@@ -845,6 +853,10 @@ textarea {
   resize: vertical;
 }
 
+.ai-plan-form .compact-textarea {
+  min-height: 88px;
+}
+
 .task-form button,
 .simple-form button,
 .project-actions button {
@@ -1335,6 +1347,7 @@ textarea {
   .morning-board,
   .content-grid,
   .plan-form,
+  .guide-grid,
   .ai-context-grid {
     grid-template-columns: 1fr;
   }

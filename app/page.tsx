@@ -8,6 +8,7 @@ import {
   Circle,
   ClipboardList,
   Clock3,
+  Eraser,
   Flame,
   FolderKanban,
   Gauge,
@@ -157,6 +158,13 @@ type ProjectDraft = {
   name: string;
   stage: string;
   nextAction: string;
+};
+
+type PlanGuideDraft = {
+  fixedEvents: string;
+  mustDo: string;
+  wantToDo: string;
+  constraints: string;
 };
 
 type TodaySnapshot = {
@@ -311,6 +319,13 @@ const defaultState: AppState = {
   journal: "",
   eveningJournal: "",
   note: "",
+};
+
+const emptyPlanGuide: PlanGuideDraft = {
+  fixedEvents: "",
+  mustDo: "",
+  wantToDo: "",
+  constraints: "",
 };
 
 const moodLabels: Record<Mood, string> = {
@@ -587,6 +602,20 @@ function summarizePlannerMemory(memory: PlannerMemory): PlannerMemoryContext {
   };
 }
 
+function buildPlanningPrompt(notes: string, guide: PlanGuideDraft) {
+  const sections = [
+    ["General notes", notes],
+    ["Fixed events", guide.fixedEvents],
+    ["Must do", guide.mustDo],
+    ["Would like", guide.wantToDo],
+    ["Constraints", guide.constraints],
+  ]
+    .map(([label, value]) => [label, value.trim()] as const)
+    .filter(([, value]) => value);
+
+  return sections.map(([label, value]) => `${label}: ${value}`).join("\n");
+}
+
 function storageKeyForToday() {
   return `${BASE_STORAGE_KEY}:${getLocalDateKey()}`;
 }
@@ -826,6 +855,7 @@ export default function Home() {
     stage: "Planning",
     nextAction: "",
   });
+  const [planGuide, setPlanGuide] = useState<PlanGuideDraft>(emptyPlanGuide);
   const [planInput, setPlanInput] = useState("");
   const [generatedPlan, setGeneratedPlan] = useState<GeneratedPlan | null>(null);
   const [planStatus, setPlanStatus] = useState<
@@ -942,7 +972,7 @@ export default function Home() {
   async function generatePlan(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
     const latestMemory = readPlannerMemory();
-    const typedPrompt = planInput.trim();
+    const typedPrompt = buildPlanningPrompt(planInput, planGuide).trim();
     const prompt =
       typedPrompt ||
       (latestMemory.carryOverTasks.length
@@ -1034,6 +1064,21 @@ export default function Home() {
     );
 
     setPlanOpen(false);
+  }
+
+  function updatePlanGuideField(field: keyof PlanGuideDraft, value: string) {
+    setPlanGuide((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
+
+  function clearPlanDraft() {
+    setPlanGuide(emptyPlanGuide);
+    setPlanInput("");
+    setGeneratedPlan(null);
+    setPlanStatus("idle");
+    setPlanError("");
   }
 
   function addTask(event: FormEvent<HTMLFormElement>) {
@@ -1323,11 +1368,57 @@ export default function Home() {
               <h2 id="plan-heading">Plan with AI</h2>
             </div>
             <form className="ai-plan-form" onSubmit={generatePlan}>
+              <div className="guide-grid" aria-label="Guided planning inputs">
+                <label>
+                  <span>Fixed events</span>
+                  <textarea
+                    className="compact-textarea"
+                    onChange={(event) =>
+                      updatePlanGuideField("fixedEvents", event.target.value)
+                    }
+                    placeholder="Class at 2 PM, shift 5-9 PM"
+                    value={planGuide.fixedEvents}
+                  />
+                </label>
+                <label>
+                  <span>Must do</span>
+                  <textarea
+                    className="compact-textarea"
+                    onChange={(event) =>
+                      updatePlanGuideField("mustDo", event.target.value)
+                    }
+                    placeholder="Submit assignment, call advisor"
+                    value={planGuide.mustDo}
+                  />
+                </label>
+                <label>
+                  <span>Would like</span>
+                  <textarea
+                    className="compact-textarea"
+                    onChange={(event) =>
+                      updatePlanGuideField("wantToDo", event.target.value)
+                    }
+                    placeholder="Workout, portfolio polish"
+                    value={planGuide.wantToDo}
+                  />
+                </label>
+                <label>
+                  <span>Constraints</span>
+                  <textarea
+                    className="compact-textarea"
+                    onChange={(event) =>
+                      updatePlanGuideField("constraints", event.target.value)
+                    }
+                    placeholder="Low energy, travel time, hard deadline"
+                    value={planGuide.constraints}
+                  />
+                </label>
+              </div>
               <label className="wide-field">
-                <span>Tell Dayframe what your day looks like</span>
+                <span>Extra notes</span>
                 <textarea
                   onChange={(event) => setPlanInput(event.target.value)}
-                  placeholder="Example: I have class at 2 PM, need to revise my portfolio, want to work out, and my energy is around 3/5."
+                  placeholder="Anything else Dayframe should consider"
                   value={planInput}
                 />
               </label>
@@ -1350,6 +1441,10 @@ export default function Home() {
                 </p>
               ) : null}
               <div className="form-actions">
+                <button className="secondary-button" onClick={clearPlanDraft} type="button">
+                  <Eraser size={17} />
+                  Clear fields
+                </button>
                 <button className="secondary-button" onClick={() => setPlanOpen(false)} type="button">
                   Cancel
                 </button>
