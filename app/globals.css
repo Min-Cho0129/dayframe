@@ -423,13 +423,19 @@ h2 {
   border-radius: 8px;
   display: grid;
   gap: 10px;
-  grid-template-columns: 86px minmax(0, 1fr);
+  grid-template-columns: 104px minmax(0, 1fr);
   padding: 11px 12px;
 }
 
-.ai-plan-list time {
+.ai-plan-list label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ai-plan-list label > span {
   color: var(--green-dark);
-  font-size: 0.84rem;
+  font-size: 0.76rem;
   font-weight: 850;
 }
 
@@ -439,9 +445,42 @@ h2 {
   min-width: 0;
 }
 
-.ai-plan-list strong {
-  font-size: 0.98rem;
-  line-height: 1.3;
+.ai-plan-list input,
+.ai-plan-list select {
+  background: #f9fbf8;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-height: 38px;
+  min-width: 0;
+  padding: 0 10px;
+  width: 100%;
+}
+
+.ai-plan-list .plan-task-controls {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 94px minmax(110px, 0.8fr) minmax(110px, 0.8fr);
+}
+
+.ai-plan-list .plan-task-footer {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  margin-top: 2px;
+}
+
+.ai-plan-list .critical-toggle {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+}
+
+.ai-plan-list .critical-toggle input {
+  accent-color: var(--green);
+  height: 18px;
+  min-height: 18px;
+  width: 18px;
 }
 
 .ai-plan-list span,
@@ -555,6 +594,7 @@ button:disabled {
 }
 
 .task-form input:focus,
+.ai-plan-list input:focus,
 select:focus,
 textarea:focus,
 input[type="range"]:focus-visible {
@@ -1420,6 +1460,10 @@ textarea {
   .schedule-list li,
   .ai-plan-list li {
     align-items: flex-start;
+    grid-template-columns: 1fr;
+  }
+
+  .ai-plan-list .plan-task-controls {
     grid-template-columns: 1fr;
   }
 

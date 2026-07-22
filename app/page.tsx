@@ -348,6 +348,16 @@ const priorityLabels: Record<Priority, string> = {
   high: "High priority",
 };
 
+const planAreaOptions = [
+  "Focus",
+  "Project",
+  "Study",
+  "Health",
+  "Admin",
+  "Review",
+  "Today",
+];
+
 function normalizePriority(value: unknown): Priority {
   return value === "low" || value === "medium" || value === "high"
     ? value
@@ -1039,13 +1049,20 @@ export default function Home() {
 
   function acceptGeneratedPlan() {
     if (!generatedPlan) return;
+    const acceptedTasks = generatedPlan.tasks.filter((task) => task.title.trim());
+
+    if (!acceptedTasks.length) {
+      setPlanStatus("error");
+      setPlanError("Keep at least one task before accepting the plan.");
+      return;
+    }
 
     updateState(
       (current) => {
-        const plannedTasks = generatedPlan.tasks.map((task, index) =>
+        const plannedTasks = acceptedTasks.map((task, index) =>
           createTask({
-            title: task.title,
-            area: task.area,
+            title: task.title.trim(),
+            area: task.area || "Today",
             scheduledTime: task.scheduledTime,
             durationMinutes: clampMinutes(task.durationMinutes),
             priority: task.priority,
@@ -1064,6 +1081,33 @@ export default function Home() {
     );
 
     setPlanOpen(false);
+  }
+
+  function updateGeneratedPlanTask(
+    index: number,
+    changes: Partial<GeneratedPlanTask>,
+  ) {
+    setGeneratedPlan((current) => {
+      if (!current) return current;
+
+      return {
+        ...current,
+        tasks: current.tasks.map((task, taskIndex) =>
+          taskIndex === index ? { ...task, ...changes } : task,
+        ),
+      };
+    });
+  }
+
+  function removeGeneratedPlanTask(index: number) {
+    setGeneratedPlan((current) => {
+      if (!current) return current;
+
+      return {
+        ...current,
+        tasks: current.tasks.filter((_, taskIndex) => taskIndex !== index),
+      };
+    });
   }
 
   function updatePlanGuideField(field: keyof PlanGuideDraft, value: string) {
@@ -1470,13 +1514,109 @@ export default function Home() {
                 <p>{generatedPlan.intention}</p>
                 <ol className="ai-plan-list">
                   {generatedPlan.tasks.map((task, index) => (
-                    <li key={`${task.title}-${task.scheduledTime}-${index}`}>
-                      <time>{formatTimeLabel(task.scheduledTime)}</time>
-                      <div>
-                        <strong>{task.title}</strong>
-                        <span>
-                          {formatDuration(task.durationMinutes)} · {priorityLabels[task.priority]} · {task.area}
-                        </span>
+                    <li key={`generated-task-${index}`}>
+                      <div className="plan-task-time">
+                        <label>
+                          <span>Time</span>
+                          <input
+                            aria-label={`Suggested task ${index + 1} time`}
+                            onChange={(event) =>
+                              updateGeneratedPlanTask(index, {
+                                scheduledTime: event.target.value,
+                              })
+                            }
+                            type="time"
+                            value={task.scheduledTime}
+                          />
+                        </label>
+                      </div>
+                      <div className="plan-task-editor">
+                        <label className="plan-task-title">
+                          <span>Task</span>
+                          <input
+                            aria-label={`Suggested task ${index + 1} title`}
+                            onChange={(event) =>
+                              updateGeneratedPlanTask(index, {
+                                title: event.target.value,
+                              })
+                            }
+                            value={task.title}
+                          />
+                        </label>
+                        <div className="plan-task-controls">
+                          <label>
+                            <span>Minutes</span>
+                            <input
+                              aria-label={`Suggested task ${index + 1} minutes`}
+                              max="180"
+                              min="10"
+                              onChange={(event) =>
+                                updateGeneratedPlanTask(index, {
+                                  durationMinutes: Number(event.target.value),
+                                })
+                              }
+                              step="5"
+                              type="number"
+                              value={task.durationMinutes}
+                            />
+                          </label>
+                          <label>
+                            <span>Priority</span>
+                            <select
+                              aria-label={`Suggested task ${index + 1} priority`}
+                              onChange={(event) =>
+                                updateGeneratedPlanTask(index, {
+                                  priority: event.target.value as Priority,
+                                })
+                              }
+                              value={task.priority}
+                            >
+                              <option value="low">Low</option>
+                              <option value="medium">Medium</option>
+                              <option value="high">High</option>
+                            </select>
+                          </label>
+                          <label>
+                            <span>Area</span>
+                            <select
+                              aria-label={`Suggested task ${index + 1} area`}
+                              onChange={(event) =>
+                                updateGeneratedPlanTask(index, {
+                                  area: event.target.value,
+                                })
+                              }
+                              value={task.area}
+                            >
+                              {planAreaOptions.map((area) => (
+                                <option key={area} value={area}>
+                                  {area}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        </div>
+                        <div className="plan-task-footer">
+                          <label className="critical-toggle">
+                            <input
+                              checked={task.isCritical}
+                              onChange={(event) =>
+                                updateGeneratedPlanTask(index, {
+                                  isCritical: event.target.checked,
+                                })
+                              }
+                              type="checkbox"
+                            />
+                            <span>Critical task</span>
+                          </label>
+                          <button
+                            aria-label={`Remove suggested task ${index + 1}`}
+                            className="icon-button danger-button"
+                            onClick={() => removeGeneratedPlanTask(index)}
+                            type="button"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
                         <small>{task.rationale}</small>
                       </div>
                     </li>
