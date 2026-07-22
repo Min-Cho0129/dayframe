@@ -82,6 +82,9 @@ test("keeps starter preview code out of the app surface", async () => {
   assert.match(page, /Heavy plan/);
   assert.match(page, /generatePlan/);
   assert.match(page, /acceptGeneratedPlan/);
+  assert.match(page, /startEditingTask/);
+  assert.match(page, /saveTaskEdit/);
+  assert.match(page, /task-edit-form/);
   assert.match(page, /updateGeneratedPlanTask/);
   assert.match(page, /removeGeneratedPlanTask/);
   assert.match(page, /Critical task/);

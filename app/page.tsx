@@ -14,6 +14,7 @@ import {
   Gauge,
   ListChecks,
   NotebookPen,
+  Pencil,
   Plus,
   Sparkles,
   Sunrise,
@@ -164,6 +165,15 @@ type ProjectDraft = {
   name: string;
   stage: string;
   nextAction: string;
+};
+
+type TaskEditDraft = {
+  title: string;
+  scheduledTime: string;
+  durationMinutes: number;
+  priority: Priority;
+  area: string;
+  isCritical: boolean;
 };
 
 type PlanGuideDraft = {
@@ -996,6 +1006,8 @@ export default function Home() {
   });
   const [planGuide, setPlanGuide] = useState<PlanGuideDraft>(emptyPlanGuide);
   const [planInput, setPlanInput] = useState("");
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [taskEditDraft, setTaskEditDraft] = useState<TaskEditDraft | null>(null);
   const [generatedPlan, setGeneratedPlan] = useState<GeneratedPlan | null>(null);
   const [planStatus, setPlanStatus] = useState<
     "idle" | "loading" | "ready" | "error"
@@ -1390,6 +1402,55 @@ export default function Home() {
     );
   }
 
+  function startEditingTask(task: Task) {
+    setEditingTaskId(task.id);
+    setTaskEditDraft({
+      title: task.title,
+      scheduledTime: task.scheduledTime,
+      durationMinutes: task.durationMinutes,
+      priority: task.priority,
+      area: task.area,
+      isCritical: Boolean(task.isCritical),
+    });
+  }
+
+  function updateTaskEditDraft(changes: Partial<TaskEditDraft>) {
+    setTaskEditDraft((current) => (current ? { ...current, ...changes } : current));
+  }
+
+  function cancelTaskEdit() {
+    setEditingTaskId(null);
+    setTaskEditDraft(null);
+  }
+
+  function saveTaskEdit(id: string) {
+    if (!taskEditDraft) return;
+
+    const title = taskEditDraft.title.trim();
+    if (!title) return;
+
+    updateState(
+      (current) => ({
+        ...current,
+        tasks: current.tasks.map((task) =>
+          task.id === id
+            ? {
+                ...task,
+                title,
+                area: taskEditDraft.area.trim() || "Today",
+                scheduledTime: taskEditDraft.scheduledTime,
+                durationMinutes: clampMinutes(taskEditDraft.durationMinutes),
+                priority: taskEditDraft.priority,
+                isCritical: taskEditDraft.isCritical,
+              }
+            : task,
+        ),
+      }),
+      "Task updated.",
+    );
+    cancelTaskEdit();
+  }
+
   function toggleHabit(id: string) {
     updateState(
       (current) => ({
@@ -1478,6 +1539,103 @@ export default function Home() {
 
   function getProjectName(projectId?: string) {
     return state.projects.find((project) => project.id === projectId)?.name;
+  }
+
+  function renderTaskEditForm(task: Task) {
+    if (editingTaskId !== task.id || !taskEditDraft) return null;
+
+    return (
+      <form
+        className="task-edit-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          saveTaskEdit(task.id);
+        }}
+      >
+        <label className="task-edit-title">
+          <span>Task</span>
+          <input
+            aria-label={`Edit ${task.title} title`}
+            onChange={(event) => updateTaskEditDraft({ title: event.target.value })}
+            value={taskEditDraft.title}
+          />
+        </label>
+        <label>
+          <span>Time</span>
+          <input
+            aria-label={`Edit ${task.title} time`}
+            onChange={(event) =>
+              updateTaskEditDraft({ scheduledTime: event.target.value })
+            }
+            type="time"
+            value={taskEditDraft.scheduledTime}
+          />
+        </label>
+        <label>
+          <span>Minutes</span>
+          <input
+            aria-label={`Edit ${task.title} minutes`}
+            min="5"
+            onChange={(event) =>
+              updateTaskEditDraft({ durationMinutes: Number(event.target.value) })
+            }
+            step="5"
+            type="number"
+            value={taskEditDraft.durationMinutes}
+          />
+        </label>
+        <label>
+          <span>Priority</span>
+          <select
+            aria-label={`Edit ${task.title} priority`}
+            onChange={(event) =>
+              updateTaskEditDraft({ priority: event.target.value as Priority })
+            }
+            value={taskEditDraft.priority}
+          >
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+          </select>
+        </label>
+        <label>
+          <span>Area</span>
+          <select
+            aria-label={`Edit ${task.title} area`}
+            onChange={(event) => updateTaskEditDraft({ area: event.target.value })}
+            value={taskEditDraft.area}
+          >
+            {planAreaOptions.map((area) => (
+              <option key={area} value={area}>
+                {area}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="task-edit-actions">
+          <label className="critical-toggle">
+            <input
+              checked={taskEditDraft.isCritical}
+              onChange={(event) =>
+                updateTaskEditDraft({ isCritical: event.target.checked })
+              }
+              type="checkbox"
+            />
+            <span>Critical task</span>
+          </label>
+          <div>
+            <button className="secondary-button" onClick={cancelTaskEdit} type="button">
+              <X size={16} />
+              Cancel
+            </button>
+            <button className="primary-cta" type="submit">
+              <Check size={16} />
+              Save
+            </button>
+          </div>
+        </div>
+      </form>
+    );
   }
 
   return (
@@ -1970,19 +2128,35 @@ export default function Home() {
 
             {criticalTask ? (
               <article className={`priority-card ${criticalTask.done ? "done" : ""}`}>
-                <div>
-                  <p className="eyebrow">Today&apos;s priority</p>
-                  <h3>{criticalTask.title}</h3>
-                  <span>{formatTaskMeta(criticalTask)}</span>
-                </div>
-                <label>
-                  <input
-                    checked={criticalTask.done}
-                    onChange={() => toggleTask(criticalTask.id)}
-                    type="checkbox"
-                  />
-                  <span>Done</span>
-                </label>
+                {editingTaskId === criticalTask.id ? (
+                  renderTaskEditForm(criticalTask)
+                ) : (
+                  <>
+                    <div>
+                      <p className="eyebrow">Today&apos;s priority</p>
+                      <h3>{criticalTask.title}</h3>
+                      <span>{formatTaskMeta(criticalTask)}</span>
+                    </div>
+                    <div className="priority-actions">
+                      <button
+                        className="secondary-button"
+                        onClick={() => startEditingTask(criticalTask)}
+                        type="button"
+                      >
+                        <Pencil size={16} />
+                        Edit
+                      </button>
+                      <label>
+                        <input
+                          checked={criticalTask.done}
+                          onChange={() => toggleTask(criticalTask.id)}
+                          type="checkbox"
+                        />
+                        <span>Done</span>
+                      </label>
+                    </div>
+                  </>
+                )}
               </article>
             ) : (
               <article className="priority-card empty-card">
@@ -2032,6 +2206,14 @@ export default function Home() {
               <ul className="task-list" aria-label="Task list">
                 {visibleTasks.map((task) => {
                   const projectName = getProjectName(task.projectId);
+                  if (editingTaskId === task.id) {
+                    return (
+                      <li className="task-row editing" key={task.id}>
+                        {renderTaskEditForm(task)}
+                      </li>
+                    );
+                  }
+
                   return (
                     <li className={`task-row ${task.done ? "done" : ""}`} key={task.id}>
                       <input
@@ -2048,6 +2230,14 @@ export default function Home() {
                       </div>
                       <div className="task-row-actions">
                         <em>{task.area}</em>
+                        <button
+                          aria-label={`Edit ${task.title}`}
+                          className="icon-button"
+                          onClick={() => startEditingTask(task)}
+                          type="button"
+                        >
+                          <Pencil size={16} />
+                        </button>
                         <button
                           aria-label={`Delete ${task.title}`}
                           className="icon-button danger-button"

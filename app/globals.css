@@ -595,6 +595,8 @@ button:disabled {
 
 .task-form input:focus,
 .ai-plan-list input:focus,
+.task-edit-form input:focus,
+.task-edit-form select:focus,
 select:focus,
 textarea:focus,
 input[type="range"]:focus-visible {
@@ -980,6 +982,14 @@ textarea {
   white-space: nowrap;
 }
 
+.priority-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
 .priority-card input,
 .task-row input {
   accent-color: var(--green);
@@ -1150,6 +1160,75 @@ textarea {
 .task-row.done {
   background: #eff7f0;
   color: rgba(23, 32, 28, 0.62);
+}
+
+.task-row.editing {
+  align-items: stretch;
+  grid-template-columns: 1fr;
+}
+
+.priority-card .task-edit-form,
+.task-row .task-edit-form {
+  width: 100%;
+}
+
+.task-edit-form {
+  display: grid;
+  gap: 10px;
+  grid-template-columns:
+    minmax(180px, 1fr) minmax(108px, 0.45fr) minmax(94px, 0.35fr)
+    minmax(112px, 0.42fr) minmax(112px, 0.42fr);
+}
+
+.task-edit-form label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  white-space: normal;
+}
+
+.task-edit-form label > span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 850;
+}
+
+.task-edit-form input,
+.task-edit-form select {
+  background: #f9fbf8;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-height: 40px;
+  min-width: 0;
+  padding: 0 10px;
+  width: 100%;
+}
+
+.task-edit-form .critical-toggle {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+}
+
+.task-edit-form .critical-toggle input {
+  height: 18px;
+  min-height: 18px;
+  width: 18px;
+}
+
+.task-edit-actions {
+  align-items: end;
+  display: flex;
+  gap: 10px;
+  grid-column: 1 / -1;
+  justify-content: space-between;
+}
+
+.task-edit-actions > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
 }
 
 .habit-grid {
@@ -1472,6 +1551,7 @@ textarea {
   .stat-grid,
   .habit-grid,
   .task-form,
+  .task-edit-form,
   .simple-form,
   .project-form {
     grid-template-columns: 1fr;
@@ -1490,6 +1570,16 @@ textarea {
   .task-row-actions {
     grid-column: 2;
     justify-self: start;
+  }
+
+  .task-edit-actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .task-edit-actions > div {
+    justify-content: flex-start;
+    width: 100%;
   }
 
   .priority-card,
