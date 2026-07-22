@@ -7,6 +7,8 @@ import {
   ChevronRight,
   Circle,
   ClipboardList,
+  Cloud,
+  CloudOff,
   Clock3,
   Eraser,
   Flame,
@@ -16,6 +18,7 @@ import {
   NotebookPen,
   Pencil,
   Plus,
+  RefreshCw,
   Sparkles,
   Sunrise,
   Target,
@@ -26,7 +29,13 @@ import {
   X,
 } from "lucide-react";
 import type { FormEvent, ReactNode } from "react";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import {
   formatLocalDate,
   getLocalDateKey,
@@ -200,6 +209,15 @@ type TodaySnapshot = {
   label: string;
 };
 
+type SyncPhase = "idle" | "syncing" | "validated" | "error";
+
+type SyncStatus = {
+  phase: SyncPhase;
+  label: string;
+  detail: string;
+  sizeBytes?: number;
+};
+
 type UndoState = {
   message: string;
   previous: AppState;
@@ -207,6 +225,7 @@ type UndoState = {
 
 const BASE_STORAGE_KEY = "dayframe-app-v4";
 const MEMORY_STORAGE_KEY = "dayframe-memory-v1";
+const DEVICE_STORAGE_KEY = "dayframe-device-id-v1";
 const STALE_STORAGE_PREFIXES = ["dayframe-app-v3:", "dayframe-app-v2"];
 const storeListeners = new Set<() => void>();
 const memoryListeners = new Set<() => void>();
@@ -355,6 +374,12 @@ const emptyPlanGuide: PlanGuideDraft = {
   mustDo: "",
   wantToDo: "",
   constraints: "",
+};
+
+const defaultSyncStatus: SyncStatus = {
+  phase: "idle",
+  label: "Saved on this device",
+  detail: "Local save active. Sync validation has not run yet.",
 };
 
 const moodLabels: Record<Mood, string> = {
@@ -657,6 +682,25 @@ function buildPlanningPrompt(notes: string, guide: PlanGuideDraft) {
 
 function storageKeyForToday() {
   return `${BASE_STORAGE_KEY}:${getLocalDateKey()}`;
+}
+
+function getSyncDeviceId() {
+  if (typeof window === "undefined") return "server-device";
+
+  try {
+    const existing = window.localStorage.getItem(DEVICE_STORAGE_KEY);
+    if (existing) return existing;
+
+    const generated =
+      typeof window.crypto?.randomUUID === "function"
+        ? `browser-${window.crypto.randomUUID()}`
+        : `browser-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+    window.localStorage.setItem(DEVICE_STORAGE_KEY, generated);
+    return generated;
+  } catch {
+    return "local-device";
+  }
 }
 
 function clearStaleDemoStorage() {
@@ -1030,6 +1074,13 @@ function formatCompletedAt() {
   }).format(new Date());
 }
 
+function formatSyncTime(date: Date) {
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
 function getEnergyRecommendation(energy: number, mood: Mood) {
   const recommendations: Record<
     number,
@@ -1119,6 +1170,7 @@ export default function Home() {
   const [planError, setPlanError] = useState("");
   const [reviewDraft, setReviewDraft] = useState("");
   const [memoryStatus, setMemoryStatus] = useState("");
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>(defaultSyncStatus);
 
   useEffect(() => {
     let rolloverTimer: number | undefined;
@@ -1157,6 +1209,88 @@ export default function Home() {
     () => normalizePlannerMemory(JSON.parse(memorySnapshot)),
     [memorySnapshot],
   );
+
+  const syncCurrentSnapshot = useCallback(
+    async (
+      trigger: "auto" | "manual" = "manual",
+      signal?: AbortSignal,
+    ) => {
+      setSyncStatus({
+        phase: "syncing",
+        label: "Checking sync",
+        detail: "Validating local day state and planning memory.",
+      });
+
+      try {
+        const response = await fetch("/api/sync", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          signal,
+          body: JSON.stringify({
+            dateKey: today.dateKey || getLocalDateKey(),
+            deviceId: getSyncDeviceId(),
+            savedAt: new Date().toISOString(),
+            state: readStoredState(),
+            memory: readPlannerMemory(),
+          }),
+        });
+        const result = (await response.json().catch(() => null)) as {
+          error?: string;
+          sync?: {
+            accepted?: boolean;
+            persisted?: boolean;
+            sizeBytes?: number;
+          };
+        } | null;
+
+        if (!response.ok || !result?.sync?.accepted) {
+          throw new Error(result?.error || "Sync validation failed.");
+        }
+
+        const storageState = result.sync.persisted
+          ? "Server storage active."
+          : "Server storage pending.";
+
+        setSyncStatus({
+          phase: "validated",
+          label: trigger === "manual" ? "Sync check passed" : "Sync-ready",
+          detail: `Validated ${formatSyncTime(new Date())}. ${storageState}`,
+          sizeBytes:
+            typeof result.sync.sizeBytes === "number"
+              ? result.sync.sizeBytes
+              : undefined,
+        });
+      } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") return;
+
+        setSyncStatus({
+          phase: "error",
+          label: "Sync check failed",
+          detail:
+            error instanceof Error
+              ? error.message
+              : "Local save is still available.",
+        });
+      }
+    },
+    [today.dateKey],
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const controller = new AbortController();
+    const syncTimer = window.setTimeout(() => {
+      void syncCurrentSnapshot("auto", controller.signal);
+    }, 900);
+
+    return () => {
+      window.clearTimeout(syncTimer);
+      controller.abort();
+    };
+  }, [memorySnapshot, stateSnapshot, syncCurrentSnapshot]);
 
   const stats = useMemo(() => {
     const completedTasks = state.tasks.filter((task) => task.done).length;
@@ -1875,10 +2009,22 @@ export default function Home() {
               <Plus size={18} />
               Plan with AI
             </button>
-            <div className="sync-pill" role="status" aria-live="polite">
-              <Check size={16} />
-              Saved on this device
-            </div>
+            <button
+              className={`sync-pill ${syncStatus.phase}`}
+              disabled={syncStatus.phase === "syncing"}
+              onClick={() => void syncCurrentSnapshot("manual")}
+              title={syncStatus.detail}
+              type="button"
+            >
+              {syncStatus.phase === "error" ? (
+                <CloudOff size={16} />
+              ) : syncStatus.phase === "syncing" ? (
+                <RefreshCw size={16} />
+              ) : (
+                <Cloud size={16} />
+              )}
+              <span>{syncStatus.label}</span>
+            </button>
           </div>
         </header>
 
@@ -2801,6 +2947,27 @@ export default function Home() {
                 <span>{plannerMemory.entries.length} saved days</span>
                 <span>{plannerMemory.carryOverTasks.length} carry-over items</span>
               </div>
+              <div
+                className={`sync-summary ${syncStatus.phase}`}
+                aria-label="Sync validation status"
+              >
+                {syncStatus.phase === "error" ? (
+                  <CloudOff size={18} />
+                ) : syncStatus.phase === "syncing" ? (
+                  <RefreshCw size={18} />
+                ) : (
+                  <Cloud size={18} />
+                )}
+                <div>
+                  <strong>{syncStatus.label}</strong>
+                  <span>
+                    {syncStatus.detail}
+                    {syncStatus.sizeBytes
+                      ? ` ${Math.round(syncStatus.sizeBytes / 1024)} KB checked.`
+                      : ""}
+                  </span>
+                </div>
+              </div>
               <label className="text-field">
                 <span>Daily review for AI planning</span>
                 <textarea
@@ -2832,6 +2999,15 @@ export default function Home() {
                 </div>
               ) : null}
               <div className="form-actions">
+                <button
+                  className="secondary-button"
+                  disabled={syncStatus.phase === "syncing"}
+                  onClick={() => void syncCurrentSnapshot("manual")}
+                  type="button"
+                >
+                  <Cloud size={17} />
+                  Validate sync now
+                </button>
                 <button className="secondary-button" onClick={saveDailyReview} type="button">
                   <Sparkles size={17} />
                   Save review to memory

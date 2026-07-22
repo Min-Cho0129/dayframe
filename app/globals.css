@@ -191,6 +191,33 @@ h2 {
   white-space: nowrap;
 }
 
+.sync-pill span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sync-pill.validated {
+  background: #edf7f0;
+  border-color: rgba(24, 119, 101, 0.28);
+}
+
+.sync-pill.syncing {
+  background: #f3f7fc;
+  border-color: rgba(47, 111, 186, 0.24);
+  color: #1e578f;
+}
+
+.sync-pill.error {
+  background: #fff1ee;
+  border-color: rgba(225, 95, 79, 0.34);
+  color: #9a372d;
+}
+
+.sync-pill:focus-visible {
+  box-shadow: 0 0 0 3px rgba(24, 119, 101, 0.16);
+  outline: none;
+}
+
 .primary-cta,
 .secondary-button,
 .undo-toast button,
@@ -1541,6 +1568,53 @@ textarea {
   font-weight: 850;
   min-height: 38px;
   padding: 9px 10px;
+}
+
+.sync-summary {
+  align-items: flex-start;
+  background: #f8faf7;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--green-dark);
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+  padding: 11px 12px;
+}
+
+.sync-summary > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.sync-summary strong {
+  font-size: 0.9rem;
+  line-height: 1.25;
+}
+
+.sync-summary span {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 760;
+  line-height: 1.4;
+}
+
+.sync-summary.validated {
+  background: #edf7f0;
+  border-color: rgba(24, 119, 101, 0.28);
+}
+
+.sync-summary.syncing {
+  background: #f3f7fc;
+  border-color: rgba(47, 111, 186, 0.24);
+  color: #1e578f;
+}
+
+.sync-summary.error {
+  background: #fff1ee;
+  border-color: rgba(225, 95, 79, 0.34);
+  color: #9a372d;
 }
 
 .memory-section {

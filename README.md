@@ -27,6 +27,7 @@ run on Vercel without a backend or database.
 - Store each day by the browser's local date key.
 - Store planning memory on the same device with `localStorage`.
 - Validate sync-ready daily state and planning memory payloads through `/api/sync`.
+- Show sync validation status in the app before full account-based storage is enabled.
 
 ## Server Sync Foundation
 
@@ -34,11 +35,13 @@ The app now includes a server-side sync contract and database schema foundation:
 
 - `app/api/sync/route.ts` validates sync payloads for the current day state and planning memory.
 - `app/sync-contract.js` normalizes the sync payload shape shared by tests and routes.
+- `app/page.tsx` sends the local day state and planning memory to `/api/sync` for automatic and manual validation.
 - `db/schema.ts` defines future user profile, daily state, and planning memory tables.
 
 The current `/api/sync` endpoint is intentionally `contract-only`; it accepts and
-validates payloads but does not persist them yet. The next backend step is adding
-authentication and wiring the validated payload into the database tables.
+validates payloads but does not persist them yet. The app labels this as sync
+validation, not server storage. The next backend step is adding authentication
+and wiring the validated payload into the database tables.
 
 ## Deploy On Vercel
 

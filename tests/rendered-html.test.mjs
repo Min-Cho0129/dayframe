@@ -56,6 +56,8 @@ test("server-renders the morning productivity app", async () => {
   assert.match(html, /Planning memory/);
   assert.match(html, /Daily review for AI planning/);
   assert.match(html, /No carry-over items yet/);
+  assert.match(html, /Sync validation has not run yet/);
+  assert.match(html, /Validate sync now/);
   assert.match(html, /Daily quote/);
   assert.match(html, /Refreshes at local midnight/);
   assert.match(html, /Today&#x27;s momentum/);
@@ -125,6 +127,10 @@ test("keeps starter preview code out of the app surface", async () => {
   assert.match(page, /getLocalDateKey/);
   assert.match(page, /useSyncExternalStore/);
   assert.match(page, /clearStaleDemoStorage/);
+  assert.match(page, /syncCurrentSnapshot/);
+  assert.match(page, /dayframe-device-id-v1/);
+  assert.match(page, /Validate sync now/);
+  assert.match(page, /\/api\/sync/);
   assert.match(syncRoute, /normalizeSyncPayload/);
   assert.match(syncContract, /contract-only/);
   assert.match(dbSchema, /userProfiles/);
