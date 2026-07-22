@@ -113,6 +113,18 @@ type ScheduleInsight = {
   detail: string;
 };
 
+type TimelineSegment = {
+  id: string;
+  kind: "task" | "gap";
+  start: number;
+  end: number;
+  title: string;
+  detail: string;
+  done?: boolean;
+  overlap?: boolean;
+  priority?: Priority;
+};
+
 type DailyMemoryEntry = {
   dateKey: string;
   completedTasks: string[];
@@ -937,6 +949,58 @@ function getScheduleInsights(tasks: Task[], energy: number): ScheduleInsight[] {
   return insights.slice(0, 3);
 }
 
+function getDailyTimeline(tasks: Task[]): TimelineSegment[] {
+  const scheduled = tasks
+    .map((task) => {
+      const start = parseScheduleMinutes(task.scheduledTime);
+      return start === null
+        ? null
+        : { task, start, end: start + clampMinutes(task.durationMinutes) };
+    })
+    .filter(
+      (item): item is { task: Task; start: number; end: number } => Boolean(item),
+    )
+    .sort((a, b) => a.start - b.start || a.task.title.localeCompare(b.task.title));
+  const segments: TimelineSegment[] = [];
+  let previousEnd = scheduled[0]?.start ?? 0;
+
+  for (const block of scheduled) {
+    const gap = block.start - previousEnd;
+    if (gap >= 20) {
+      segments.push({
+        id: `gap-${previousEnd}-${block.start}`,
+        kind: "gap",
+        start: previousEnd,
+        end: block.start,
+        title: "Open space",
+        detail: formatDuration(gap),
+      });
+    }
+
+    segments.push({
+      id: block.task.id,
+      kind: "task",
+      start: block.start,
+      end: block.end,
+      title: block.task.title,
+      detail: `${formatDuration(block.task.durationMinutes)} · ${priorityLabels[block.task.priority]} · ${block.task.area}`,
+      done: block.task.done,
+      overlap: block.start < previousEnd,
+      priority: block.task.priority,
+    });
+
+    previousEnd = Math.max(previousEnd, block.end);
+  }
+
+  return segments;
+}
+
+function getTimelineSegmentHeight(segment: TimelineSegment) {
+  const minutes = Math.max(0, segment.end - segment.start);
+  const minimum = segment.kind === "gap" ? 34 : 58;
+  return `${Math.round(clamp(minutes, minimum, 150))}px`;
+}
+
 function formatCompletedAt() {
   return new Intl.DateTimeFormat("en-US", {
     hour: "numeric",
@@ -1117,6 +1181,10 @@ export default function Home() {
       [...state.tasks]
         .filter((task) => task.scheduledTime)
         .sort(compareScheduledTasks),
+    [state.tasks],
+  );
+  const timelineSegments = useMemo(
+    () => getDailyTimeline(state.tasks),
     [state.tasks],
   );
   const autoSpaceableTasks = useMemo(
@@ -2250,6 +2318,43 @@ export default function Home() {
                   Auto-space schedule
                 </button>
               </div>
+              <section className="timeline-block" aria-label="Daily timeline">
+                <div className="timeline-heading">
+                  <strong>Daily timeline</strong>
+                  <span>
+                    {timelineSegments.length
+                      ? `${timelineSegments.length} block${timelineSegments.length === 1 ? "" : "s"}`
+                      : "No scheduled blocks"}
+                  </span>
+                </div>
+                {timelineSegments.length ? (
+                  <div className="daily-timeline">
+                    {timelineSegments.map((segment) => (
+                      <div
+                        className={`timeline-segment ${segment.kind} ${
+                          segment.done ? "done" : ""
+                        } ${segment.overlap ? "overlap" : ""}`}
+                        key={segment.id}
+                        style={{ minHeight: getTimelineSegmentHeight(segment) }}
+                      >
+                        <time>{formatMinutesAsTimeLabel(segment.start)}</time>
+                        <div>
+                          <strong>{segment.title}</strong>
+                          <span>
+                            {segment.kind === "task" && segment.overlap
+                              ? `${segment.detail} · overlaps previous block`
+                              : segment.detail}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="empty-state">
+                    Add times to tasks to see the shape of your day.
+                  </p>
+                )}
+              </section>
               {scheduledTasks.length ? (
                 <ol className="schedule-list">
                   {scheduledTasks.map((task) => (
