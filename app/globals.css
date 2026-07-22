@@ -345,6 +345,78 @@ h2 {
   grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
 }
 
+.plan-energy-card {
+  background: #f8faf7;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 11px;
+  grid-column: 1 / -1;
+  padding: 12px;
+}
+
+.plan-energy-card > div:first-child {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.plan-energy-card span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.plan-energy-card strong {
+  color: var(--green-dark);
+}
+
+.energy-segments {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.energy-segments button {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  min-height: 58px;
+  min-width: 0;
+  padding: 9px 8px;
+  text-align: left;
+}
+
+.energy-segments button strong {
+  color: var(--ink);
+  font-size: 0.9rem;
+  line-height: 1.1;
+}
+
+.energy-segments button span {
+  font-size: 0.72rem;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.energy-segments button.active {
+  background: var(--green);
+  border-color: var(--green);
+}
+
+.energy-segments button.active strong,
+.energy-segments button.active span {
+  color: #ffffff;
+}
+
+.energy-segments button:focus-visible {
+  box-shadow: 0 0 0 3px rgba(24, 119, 101, 0.16);
+  outline: none;
+}
+
 .ai-context-grid span {
   background: #f8faf7;
   border: 1px solid var(--line);
@@ -1784,6 +1856,10 @@ textarea {
 
   .ai-plan-list .plan-task-controls {
     grid-template-columns: 1fr;
+  }
+
+  .energy-segments {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .meter-copy {

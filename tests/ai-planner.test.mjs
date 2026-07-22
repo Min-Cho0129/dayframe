@@ -74,3 +74,19 @@ test("prioritizes saved carry-over memory in fallback plans", () => {
   assert.ok(plan.tasks.some((task) => task.title === "email my advisor"));
   assert.match(plan.summary, /saved planning memory/i);
 });
+
+test("adjusts fallback schedule intensity from selected energy", () => {
+  const lowEnergyPlan = createFallbackPlan({
+    prompt: "Write report, review notes, send update",
+    energy: 1,
+  });
+  const highEnergyPlan = createFallbackPlan({
+    prompt: "Write report, review notes, send update",
+    energy: 5,
+  });
+
+  assert.equal(lowEnergyPlan.tasks[0].scheduledTime, "10:30");
+  assert.equal(lowEnergyPlan.tasks[0].durationMinutes, 25);
+  assert.equal(highEnergyPlan.tasks[0].scheduledTime, "09:00");
+  assert.equal(highEnergyPlan.tasks[0].durationMinutes, 75);
+});

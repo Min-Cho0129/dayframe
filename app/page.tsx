@@ -402,6 +402,14 @@ const priorityLabels: Record<Priority, string> = {
   high: "High priority",
 };
 
+const planEnergyOptions = [
+  { value: 1, label: "Low", detail: "Light tasks" },
+  { value: 2, label: "Easy", detail: "Short blocks" },
+  { value: 3, label: "Steady", detail: "Normal pace" },
+  { value: 4, label: "Strong", detail: "Deep work" },
+  { value: 5, label: "Peak", detail: "Hard tasks" },
+];
+
 const planAreaOptions = [
   "Focus",
   "Project",
@@ -1159,6 +1167,7 @@ export default function Home() {
     stage: "Planning",
     nextAction: "",
   });
+  const [planEnergy, setPlanEnergy] = useState(defaultState.energy);
   const [planGuide, setPlanGuide] = useState<PlanGuideDraft>(emptyPlanGuide);
   const [planInput, setPlanInput] = useState("");
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
@@ -1374,6 +1383,9 @@ export default function Home() {
   }
 
   function openPlanPanel() {
+    const latestState = readStoredState();
+
+    setPlanEnergy(Math.round(clamp(latestState.energy, 1, 5)));
     setGeneratedPlan(null);
     setPlanStatus("idle");
     setPlanError("");
@@ -1408,7 +1420,7 @@ export default function Home() {
         body: JSON.stringify({
           prompt,
           dateKey: today.dateKey,
-          energy: state.energy,
+          energy: planEnergy,
           mood: state.mood,
           existingTasks: state.tasks
             .filter((task) => !task.done)
@@ -1474,6 +1486,7 @@ export default function Home() {
 
         return {
           ...current,
+          energy: planEnergy,
           focus: generatedPlan.intention,
           tasks: [...plannedTasks, ...completedTasks],
         };
@@ -1521,6 +1534,7 @@ export default function Home() {
   function clearPlanDraft() {
     setPlanGuide(emptyPlanGuide);
     setPlanInput("");
+    setPlanEnergy(Math.round(clamp(readStoredState().energy, 1, 5)));
     setGeneratedPlan(null);
     setPlanStatus("idle");
     setPlanError("");
@@ -2107,8 +2121,32 @@ export default function Home() {
                   value={planInput}
                 />
               </label>
+              <section
+                className="plan-energy-card"
+                aria-labelledby="plan-energy-heading"
+              >
+                <div>
+                  <span id="plan-energy-heading">Energy for this plan</span>
+                  <strong>{planEnergy}/5</strong>
+                </div>
+                <div className="energy-segments" role="group">
+                  {planEnergyOptions.map((option) => (
+                    <button
+                      aria-label={`Set AI plan energy to ${option.label}`}
+                      aria-pressed={planEnergy === option.value}
+                      className={planEnergy === option.value ? "active" : ""}
+                      key={option.value}
+                      onClick={() => setPlanEnergy(option.value)}
+                      type="button"
+                    >
+                      <strong>{option.label}</strong>
+                      <span>{option.detail}</span>
+                    </button>
+                  ))}
+                </div>
+              </section>
               <div className="ai-context-grid">
-                <span>Energy {state.energy}/5</span>
+                <span>Plan energy {planEnergy}/5</span>
                 <span>Mood {moodLabels[state.mood]}</span>
                 <span>{stats.openTasks} open tasks</span>
                 <span>{state.projects.length} projects</span>

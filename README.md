@@ -12,6 +12,7 @@ enabled with Upstash Redis REST environment variables.
 - Plan today with one critical task, a start time, estimated duration, and intention.
 - Generate a draft plan from natural language with the AI planning flow.
 - Build an AI planning brief from guided fields for fixed events, must-do work, optional work, and constraints.
+- Choose plan-specific energy inside the AI planning flow so generated blocks match the day.
 - Edit the AI draft task titles, times, durations, priorities, areas, and critical marker before accepting it.
 - Check the daily schedule for time overlaps, unscheduled work, open space, and workload fit.
 - See scheduled tasks and open gaps in a visual daily timeline.

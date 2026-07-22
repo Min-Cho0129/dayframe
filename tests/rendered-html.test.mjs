@@ -118,6 +118,10 @@ test("keeps starter preview code out of the app surface", async () => {
   assert.match(page, /Critical task/);
   assert.match(page, /buildPlanningPrompt/);
   assert.match(page, /planGuide/);
+  assert.match(page, /planEnergy/);
+  assert.match(page, /planEnergyOptions/);
+  assert.match(page, /Energy for this plan/);
+  assert.match(page, /Plan energy/);
   assert.match(page, /Fixed events/);
   assert.match(page, /Must do/);
   assert.match(page, /Would like/);
