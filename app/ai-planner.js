@@ -107,13 +107,35 @@ export function normalizePlan(value) {
 
 export function createFallbackPlan(context = {}) {
   const prompt = cleanText(context.prompt, "", 1600);
+  const memory =
+    context.memory && typeof context.memory === "object" ? context.memory : {};
+  const carryOverTasks = Array.isArray(memory.carryOverTasks)
+    ? memory.carryOverTasks.map((task) => cleanText(task, "", 90)).filter(Boolean)
+    : [];
+  const recentUnfinishedTasks = Array.isArray(memory.recentDays)
+    ? memory.recentDays.flatMap((day) =>
+        Array.isArray(day?.unfinishedTasks)
+          ? day.unfinishedTasks
+              .map((task) => cleanText(task, "", 90))
+              .filter(Boolean)
+          : [],
+      )
+    : [];
+  const memoryTasks = dedupeTaskTitles([
+    ...carryOverTasks,
+    ...recentUnfinishedTasks,
+  ]).slice(0, 4);
   const existingTasks = Array.isArray(context.existingTasks)
     ? context.existingTasks
         .map((task) => cleanText(task?.title, "", 90))
         .filter(Boolean)
     : [];
   const promptTasks = extractTaskTitles(prompt);
-  const titles = [...existingTasks, ...promptTasks].filter(Boolean).slice(0, 6);
+  const titles = dedupeTaskTitles([
+    ...memoryTasks,
+    ...existingTasks,
+    ...promptTasks,
+  ]).slice(0, 6);
   const safeTitles = titles.length ? titles : ["Clarify today's plan"];
   const energy = clampNumber(context.energy, 3, 1, 5);
   const startTime = energy <= 2 ? "10:30" : energy === 3 ? "10:00" : "09:00";
@@ -144,7 +166,9 @@ export function createFallbackPlan(context = {}) {
 
   return normalizePlan({
     intention: inferIntention(prompt, tasks[0]?.title),
-    summary: "Local draft generated from your notes. Add an OpenAI API key for a smarter plan.",
+    summary: memoryTasks.length
+      ? "Local draft generated from your notes and saved planning memory. Add an OpenAI API key for a smarter plan."
+      : "Local draft generated from your notes. Add an OpenAI API key for a smarter plan.",
     tasks,
   });
 }
@@ -190,6 +214,21 @@ function extractTaskTitles(prompt) {
     )
     .filter((part) => part.length >= 2)
     .slice(0, 6);
+}
+
+function dedupeTaskTitles(titles) {
+  const seen = new Set();
+  const result = [];
+
+  for (const title of titles) {
+    const text = cleanText(title, "", 90);
+    const key = text.toLowerCase();
+    if (!text || seen.has(key)) continue;
+    seen.add(key);
+    result.push(text);
+  }
+
+  return result;
 }
 
 function inferIntention(prompt, firstTask) {

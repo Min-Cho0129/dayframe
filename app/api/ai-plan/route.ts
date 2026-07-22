@@ -23,6 +23,19 @@ type PlannerContext = {
     title: string;
     progress?: number;
   }>;
+  memory?: {
+    recentDays?: Array<{
+      dateKey: string;
+      completedTasks?: string[];
+      unfinishedTasks?: string[];
+      energy?: number;
+      mood?: string;
+      intention?: string;
+      review?: string;
+    }>;
+    carryOverTasks?: string[];
+    patterns?: string[];
+  };
 };
 
 export async function POST(request: Request) {
@@ -67,7 +80,7 @@ export async function POST(request: Request) {
           {
             role: "system",
             content:
-              "You are Dayframe, an adaptive daily planning assistant. Turn messy user notes into a realistic English time-blocked plan. Respect fixed appointments, avoid overloading the day, and make the first task the most important one. Return only the requested JSON.",
+              "You are Dayframe, an adaptive daily planning assistant. Turn messy user notes into a realistic English time-blocked plan. Respect fixed appointments, use saved memory as context, prioritize still-relevant carry-over tasks, avoid duplicating completed work, avoid overloading the day, and make the first task the most important one. Return only the requested JSON.",
           },
           {
             role: "user",
@@ -77,6 +90,7 @@ export async function POST(request: Request) {
               mood: context.mood,
               userNotes: context.prompt,
               existingTasks: context.existingTasks ?? [],
+              memory: context.memory ?? {},
               projects: context.projects ?? [],
               goals: context.goals ?? [],
             }),

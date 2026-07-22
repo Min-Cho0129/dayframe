@@ -105,6 +105,37 @@ type GeneratedPlan = {
   tasks: GeneratedPlanTask[];
 };
 
+type DailyMemoryEntry = {
+  dateKey: string;
+  completedTasks: string[];
+  unfinishedTasks: string[];
+  energy: number;
+  mood: Mood;
+  intention: string;
+  review: string;
+  savedAt: string;
+};
+
+type PlannerMemory = {
+  entries: DailyMemoryEntry[];
+  carryOverTasks: string[];
+  patterns: string[];
+};
+
+type PlannerMemoryContext = {
+  recentDays: Array<{
+    dateKey: string;
+    completedTasks: string[];
+    unfinishedTasks: string[];
+    energy: number;
+    mood: Mood;
+    intention: string;
+    review: string;
+  }>;
+  carryOverTasks: string[];
+  patterns: string[];
+};
+
 type TaskDraft = {
   title: string;
   scheduledTime: string;
@@ -139,9 +170,12 @@ type UndoState = {
 };
 
 const BASE_STORAGE_KEY = "dayframe-app-v4";
+const MEMORY_STORAGE_KEY = "dayframe-memory-v1";
 const STALE_STORAGE_PREFIXES = ["dayframe-app-v3:", "dayframe-app-v2"];
 const storeListeners = new Set<() => void>();
+const memoryListeners = new Set<() => void>();
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const MEMORY_MAX_DAYS = 14;
 
 const dailyQuotes: DailyQuote[] = [
   {
@@ -370,6 +404,189 @@ function normalizeState(value: Partial<AppState> = {}): AppState {
   };
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function cleanMemoryText(value: unknown, maxLength: number) {
+  const text = typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
+  return text.slice(0, maxLength);
+}
+
+function normalizeTextList(value: unknown, maxItems: number, maxLength = 90) {
+  if (!Array.isArray(value)) return [];
+
+  const seen = new Set<string>();
+  const items: string[] = [];
+
+  for (const item of value) {
+    const text = cleanMemoryText(item, maxLength);
+    const key = text.toLowerCase();
+    if (!text || seen.has(key)) continue;
+    seen.add(key);
+    items.push(text);
+    if (items.length >= maxItems) break;
+  }
+
+  return items;
+}
+
+function normalizeMemoryEntry(value: unknown): DailyMemoryEntry | null {
+  if (!isRecord(value)) return null;
+
+  const dateKey = cleanMemoryText(value.dateKey, 24);
+  if (!dateKey) return null;
+
+  return {
+    dateKey,
+    completedTasks: normalizeTextList(value.completedTasks, 12),
+    unfinishedTasks: normalizeTextList(value.unfinishedTasks, 12),
+    energy: Math.round(clamp(Number(value.energy) || 3, 1, 5)),
+    mood: normalizeMood(value.mood),
+    intention: cleanMemoryText(value.intention, 160),
+    review: cleanMemoryText(value.review, 900),
+    savedAt: cleanMemoryText(value.savedAt, 40) || `${dateKey}T00:00:00.000Z`,
+  };
+}
+
+function normalizePlannerMemory(value: unknown = {}): PlannerMemory {
+  const memory = isRecord(value) ? value : {};
+  const entries = Array.isArray(memory.entries)
+    ? memory.entries
+        .map(normalizeMemoryEntry)
+        .filter((entry): entry is DailyMemoryEntry => Boolean(entry))
+        .sort(compareMemoryEntries)
+        .slice(0, MEMORY_MAX_DAYS)
+    : [];
+
+  return {
+    entries,
+    carryOverTasks: normalizeTextList(memory.carryOverTasks, 10),
+    patterns: normalizeTextList(memory.patterns, 6, 140),
+  };
+}
+
+function compareMemoryEntries(a: DailyMemoryEntry, b: DailyMemoryEntry) {
+  return b.dateKey.localeCompare(a.dateKey) || b.savedAt.localeCompare(a.savedAt);
+}
+
+function readPlannerMemory(): PlannerMemory {
+  if (typeof window === "undefined") return normalizePlannerMemory();
+
+  try {
+    const saved = window.localStorage.getItem(MEMORY_STORAGE_KEY);
+    return normalizePlannerMemory(saved ? JSON.parse(saved) : {});
+  } catch {
+    return normalizePlannerMemory();
+  }
+}
+
+function writePlannerMemory(memory: PlannerMemory) {
+  const normalized = normalizePlannerMemory(memory);
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(MEMORY_STORAGE_KEY, JSON.stringify(normalized));
+  }
+  memoryListeners.forEach((listener) => listener());
+  return normalized;
+}
+
+function buildTodayMemoryEntry(
+  state: AppState,
+  dateKey: string,
+  review: string,
+): DailyMemoryEntry {
+  return {
+    dateKey,
+    completedTasks: normalizeTextList(
+      state.tasks.filter((task) => task.done).map((task) => task.title),
+      12,
+    ),
+    unfinishedTasks: normalizeTextList(
+      state.tasks.filter((task) => !task.done).map((task) => task.title),
+      12,
+    ),
+    energy: Math.round(clamp(state.energy, 1, 5)),
+    mood: state.mood,
+    intention: cleanMemoryText(state.focus, 160),
+    review: cleanMemoryText(review, 900),
+    savedAt: new Date().toISOString(),
+  };
+}
+
+function updatePlannerMemory(memory: PlannerMemory, entry: DailyMemoryEntry) {
+  const entries = [
+    entry,
+    ...memory.entries.filter((item) => item.dateKey !== entry.dateKey),
+  ]
+    .sort(compareMemoryEntries)
+    .slice(0, MEMORY_MAX_DAYS);
+
+  return normalizePlannerMemory({
+    entries,
+    carryOverTasks: entry.unfinishedTasks,
+    patterns: inferMemoryPatterns(entries),
+  });
+}
+
+function inferMemoryPatterns(entries: DailyMemoryEntry[]) {
+  const recentEntries = entries.slice(0, 5);
+  if (!recentEntries.length) return [];
+
+  const patterns: string[] = [];
+  const lowEnergyDays = recentEntries.filter((entry) => entry.energy <= 2).length;
+  const heavyCarryDays = recentEntries.filter(
+    (entry) =>
+      entry.unfinishedTasks.length >=
+      Math.max(2, entry.completedTasks.length + 1),
+  ).length;
+  const repeatedTasks = new Map<string, { title: string; count: number }>();
+
+  for (const entry of recentEntries) {
+    for (const task of entry.unfinishedTasks) {
+      const key = task.toLowerCase();
+      const current = repeatedTasks.get(key) ?? { title: task, count: 0 };
+      repeatedTasks.set(key, { ...current, count: current.count + 1 });
+    }
+  }
+
+  const recurringCarryOver = [...repeatedTasks.values()]
+    .filter((item) => item.count > 1)
+    .map((item) => item.title)
+    .slice(0, 2);
+
+  if (recurringCarryOver.length) {
+    patterns.push(`Recurring carry-over: ${recurringCarryOver.join(", ")}`);
+  }
+  if (lowEnergyDays >= 2) {
+    patterns.push("Recent low-energy days need a lighter first block.");
+  }
+  if (heavyCarryDays >= 2) {
+    patterns.push(
+      "Recent plans left several tasks unfinished, so keep the next draft narrower.",
+    );
+  }
+
+  return patterns.slice(0, 4);
+}
+
+function summarizePlannerMemory(memory: PlannerMemory): PlannerMemoryContext {
+  const normalized = normalizePlannerMemory(memory);
+
+  return {
+    recentDays: normalized.entries.slice(0, 5).map((entry) => ({
+      dateKey: entry.dateKey,
+      completedTasks: entry.completedTasks,
+      unfinishedTasks: entry.unfinishedTasks,
+      energy: entry.energy,
+      mood: entry.mood,
+      intention: entry.intention,
+      review: entry.review,
+    })),
+    carryOverTasks: normalized.carryOverTasks,
+    patterns: normalized.patterns,
+  };
+}
+
 function storageKeyForToday() {
   return `${BASE_STORAGE_KEY}:${getLocalDateKey()}`;
 }
@@ -428,6 +645,29 @@ function writeStoredState(next: AppState) {
     window.localStorage.setItem(storageKeyForToday(), JSON.stringify(next));
   }
   storeListeners.forEach((listener) => listener());
+}
+
+function getStoredMemorySnapshot() {
+  return JSON.stringify(readPlannerMemory());
+}
+
+function getServerMemorySnapshot() {
+  return JSON.stringify(normalizePlannerMemory());
+}
+
+function subscribeToMemoryStore(listener: () => void) {
+  memoryListeners.add(listener);
+
+  if (typeof window !== "undefined") {
+    window.addEventListener("storage", listener);
+  }
+
+  return () => {
+    memoryListeners.delete(listener);
+    if (typeof window !== "undefined") {
+      window.removeEventListener("storage", listener);
+    }
+  };
 }
 
 function clamp(value: number, min = 0, max = 100) {
@@ -592,6 +832,8 @@ export default function Home() {
     "idle" | "loading" | "ready" | "error"
   >("idle");
   const [planError, setPlanError] = useState("");
+  const [reviewDraft, setReviewDraft] = useState("");
+  const [memoryStatus, setMemoryStatus] = useState("");
 
   useEffect(() => {
     let rolloverTimer: number | undefined;
@@ -621,9 +863,19 @@ export default function Home() {
     () => normalizeState(JSON.parse(stateSnapshot)),
     [stateSnapshot],
   );
+  const memorySnapshot = useSyncExternalStore(
+    subscribeToMemoryStore,
+    getStoredMemorySnapshot,
+    getServerMemorySnapshot,
+  );
+  const plannerMemory = useMemo(
+    () => normalizePlannerMemory(JSON.parse(memorySnapshot)),
+    [memorySnapshot],
+  );
 
   const stats = useMemo(() => {
     const completedTasks = state.tasks.filter((task) => task.done).length;
+    const openTasks = state.tasks.length - completedTasks;
     const taskRate =
       state.tasks.length === 0 ? 0 : completedTasks / state.tasks.length;
     const completedHabits = state.habits.filter((habit) => habit.doneToday).length;
@@ -640,6 +892,7 @@ export default function Home() {
 
     return {
       completedTasks,
+      openTasks,
       totalTasks: state.tasks.length,
       completedHabits,
       totalHabits: state.habits.length,
@@ -688,7 +941,14 @@ export default function Home() {
 
   async function generatePlan(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
-    const prompt = planInput.trim();
+    const latestMemory = readPlannerMemory();
+    const typedPrompt = planInput.trim();
+    const prompt =
+      typedPrompt ||
+      (latestMemory.carryOverTasks.length
+        ? "Plan today from my saved carry-over tasks and recent daily reviews."
+        : "");
+
     if (!prompt) {
       setPlanStatus("error");
       setPlanError("Tell Dayframe what your day looks like first.");
@@ -717,6 +977,7 @@ export default function Home() {
               durationMinutes: task.durationMinutes,
               priority: task.priority,
             })),
+          memory: summarizePlannerMemory(latestMemory),
           projects: state.projects.map((project) => ({
             name: project.name,
             nextAction: project.nextAction,
@@ -962,11 +1223,29 @@ export default function Home() {
     );
   }
 
-  function updateJournalField(field: "journal" | "eveningJournal" | "note", value: string) {
+  function updateJournalField(
+    field: "journal" | "eveningJournal" | "note",
+    value: string,
+  ) {
     updateState((current) => ({
       ...current,
       [field]: value,
     }));
+  }
+
+  function saveDailyReview() {
+    const review =
+      reviewDraft.trim() || state.eveningJournal.trim() || state.note.trim();
+    const entry = buildTodayMemoryEntry(
+      state,
+      today.dateKey || getLocalDateKey(),
+      review,
+    );
+    const nextMemory = updatePlannerMemory(readPlannerMemory(), entry);
+    writePlannerMemory(nextMemory);
+
+    setReviewDraft(entry.review);
+    setMemoryStatus("Planning memory saved.");
   }
 
   function restoreUndo() {
@@ -1055,9 +1334,16 @@ export default function Home() {
               <div className="ai-context-grid">
                 <span>Energy {state.energy}/5</span>
                 <span>Mood {moodLabels[state.mood]}</span>
-                <span>{stats.totalTasks} open tasks</span>
+                <span>{stats.openTasks} open tasks</span>
                 <span>{state.projects.length} projects</span>
+                <span>{plannerMemory.entries.length} saved days</span>
               </div>
+              {plannerMemory.carryOverTasks.length ? (
+                <div className="memory-context-note">
+                  <strong>Carry-over</strong>
+                  <span>{plannerMemory.carryOverTasks.slice(0, 3).join(", ")}</span>
+                </div>
+              ) : null}
               {planStatus === "error" ? (
                 <p className="form-error" role="alert">
                   {planError}
@@ -1672,6 +1958,58 @@ export default function Home() {
                   value={state.note}
                 />
               </label>
+            </article>
+
+            <article className="memory-block">
+              <div className="compact-heading">
+                <Sparkles size={17} />
+                <h3>Planning memory</h3>
+              </div>
+              <div className="memory-stats" aria-label="Planning memory status">
+                <span>{plannerMemory.entries.length} saved days</span>
+                <span>{plannerMemory.carryOverTasks.length} carry-over items</span>
+              </div>
+              <label className="text-field">
+                <span>Daily review for AI planning</span>
+                <textarea
+                  onChange={(event) => setReviewDraft(event.target.value)}
+                  placeholder="Finished, unfinished, blockers, energy notes"
+                  value={reviewDraft}
+                />
+              </label>
+              {plannerMemory.carryOverTasks.length ? (
+                <div className="memory-section">
+                  <span>Current carry-over</span>
+                  <ul className="memory-list">
+                    {plannerMemory.carryOverTasks.slice(0, 5).map((task) => (
+                      <li key={task}>{task}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <p className="empty-state">No carry-over items yet.</p>
+              )}
+              {plannerMemory.patterns.length ? (
+                <div className="memory-section">
+                  <span>Detected patterns</span>
+                  <ul className="memory-list">
+                    {plannerMemory.patterns.map((pattern) => (
+                      <li key={pattern}>{pattern}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              <div className="form-actions">
+                <button className="secondary-button" onClick={saveDailyReview} type="button">
+                  <Sparkles size={17} />
+                  Save review to memory
+                </button>
+              </div>
+              {memoryStatus ? (
+                <p className="memory-status" role="status">
+                  {memoryStatus}
+                </p>
+              ) : null}
             </article>
           </section>
         </div>

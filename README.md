@@ -10,6 +10,7 @@ run on Vercel without a backend or database.
 
 - Plan today with one critical task, a start time, estimated duration, and intention.
 - Generate a draft plan from natural language with the AI planning flow.
+- Save a daily review that feeds future AI plans with recent context and carry-over tasks.
 - Add tasks with scheduled time, duration, and priority.
 - Start from a blank first-run state instead of seeded demo goals or projects.
 - Review a visible daily schedule instead of only a status dashboard.
@@ -17,6 +18,7 @@ run on Vercel without a backend or database.
 - See how momentum is calculated from tasks, habits, and daily check-in.
 - Add a project next action directly into today's task list.
 - Store each day by the browser's local date key.
+- Store planning memory on the same device with `localStorage`.
 
 ## Deploy On Vercel
 

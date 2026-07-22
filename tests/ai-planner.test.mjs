@@ -52,3 +52,25 @@ test("cleans simple English day notes for fallback tasks", () => {
     ["class", "revise my portfolio", "work out"],
   );
 });
+
+test("prioritizes saved carry-over memory in fallback plans", () => {
+  const plan = createFallbackPlan({
+    prompt: "Need to email my advisor.",
+    energy: 4,
+    mood: "clear",
+    memory: {
+      carryOverTasks: ["Finish portfolio draft", "Submit scholarship form"],
+      recentDays: [
+        {
+          dateKey: "2026-07-20",
+          unfinishedTasks: ["Finish portfolio draft"],
+        },
+      ],
+    },
+  });
+
+  assert.equal(plan.tasks[0].title, "Finish portfolio draft");
+  assert.equal(plan.tasks[0].isCritical, true);
+  assert.ok(plan.tasks.some((task) => task.title === "email my advisor"));
+  assert.match(plan.summary, /saved planning memory/i);
+});

@@ -47,6 +47,9 @@ test("server-renders the morning productivity app", async () => {
   assert.match(html, /No projects yet/);
   assert.match(html, /Notes &amp; journal/);
   assert.match(html, /Evening reflection/);
+  assert.match(html, /Planning memory/);
+  assert.match(html, /Daily review for AI planning/);
+  assert.match(html, /No carry-over items yet/);
   assert.match(html, /Daily quote/);
   assert.match(html, /Refreshes at local midnight/);
   assert.match(html, /Today&#x27;s momentum/);
@@ -74,6 +77,9 @@ test("keeps starter preview code out of the app surface", async () => {
   assert.match(page, /getDailyQuote/);
   assert.match(page, /generatePlan/);
   assert.match(page, /acceptGeneratedPlan/);
+  assert.match(page, /dayframe-memory-v1/);
+  assert.match(page, /saveDailyReview/);
+  assert.match(page, /summarizePlannerMemory/);
   assert.match(page, /getLocalDateKey/);
   assert.match(page, /useSyncExternalStore/);
   assert.match(page, /clearStaleDemoStorage/);
