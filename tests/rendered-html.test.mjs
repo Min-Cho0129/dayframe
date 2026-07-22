@@ -70,12 +70,24 @@ test("server-renders the morning productivity app", async () => {
 });
 
 test("keeps starter preview code out of the app surface", async () => {
-  const [page, layout, packageJson, previewFiles] = await Promise.all([
-    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../package.json", import.meta.url), "utf8"),
-    readdir(previewRoot),
-  ]);
+  const [
+    page,
+    layout,
+    packageJson,
+    syncRoute,
+    syncContract,
+    dbSchema,
+    previewFiles,
+  ] =
+    await Promise.all([
+      readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../package.json", import.meta.url), "utf8"),
+      readFile(new URL("../app/api/sync/route.ts", import.meta.url), "utf8"),
+      readFile(new URL("../app/sync-contract.js", import.meta.url), "utf8"),
+      readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
+      readdir(previewRoot),
+    ]);
 
   assert.deepEqual(previewFiles, []);
   assert.match(page, /dayframe-app-v4/);
@@ -113,6 +125,11 @@ test("keeps starter preview code out of the app surface", async () => {
   assert.match(page, /getLocalDateKey/);
   assert.match(page, /useSyncExternalStore/);
   assert.match(page, /clearStaleDemoStorage/);
+  assert.match(syncRoute, /normalizeSyncPayload/);
+  assert.match(syncContract, /contract-only/);
+  assert.match(dbSchema, /userProfiles/);
+  assert.match(dbSchema, /dailyStates/);
+  assert.match(dbSchema, /planningMemories/);
   assert.match(layout, /title:\s*"Dayframe"/);
   assert.doesNotMatch(page, /[가-힣]/);
   assert.doesNotMatch(layout, /[가-힣]/);
