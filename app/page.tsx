@@ -500,27 +500,42 @@ function formatCompletedAt() {
 }
 
 function getEnergyRecommendation(energy: number, mood: Mood) {
-  if (energy >= 4) {
-    return {
-      label: "High energy detected",
-      advice: "Complete your critical focus task before lower-value work.",
+  const recommendations: Record<
+    number,
+    {
+      label: string;
+      advice: string;
+      moodHint: string;
+    }
+  > = {
+    1: {
+      label: "Low energy",
+      advice: "Pick one tiny task, keep the plan light, and postpone optional work.",
       moodHint: moodRecommendations[mood],
-    };
-  }
-
-  if (energy >= 2) {
-    return {
-      label: "Moderate energy",
-      advice: "Break the main task into a 25-minute session and protect one win.",
+    },
+    2: {
+      label: "Light energy",
+      advice: "Start with a 15-minute task before committing to deeper work.",
       moodHint: moodRecommendations[mood],
-    };
-  }
-
-  return {
-    label: "Low energy",
-    advice: "Choose one small task and postpone nonessential work.",
-    moodHint: moodRecommendations[mood],
+    },
+    3: {
+      label: "Steady energy",
+      advice: "Use one 25-minute focus block and keep the rest of the plan realistic.",
+      moodHint: moodRecommendations[mood],
+    },
+    4: {
+      label: "Strong energy",
+      advice: "Do your most important task first, then schedule a smaller follow-up.",
+      moodHint: moodRecommendations[mood],
+    },
+    5: {
+      label: "Peak energy",
+      advice: "Protect a longer deep-work block for the hardest task on your list.",
+      moodHint: moodRecommendations[mood],
+    },
   };
+
+  return recommendations[Math.round(clamp(energy, 1, 5))];
 }
 
 function createTask(overrides: Partial<Task>): Task {
