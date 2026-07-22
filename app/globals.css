@@ -43,6 +43,7 @@ body {
 
 button,
 input,
+select,
 textarea {
   color: inherit;
   font: inherit;
@@ -122,6 +123,8 @@ svg {
 }
 
 .topbar,
+.undo-toast,
+.plan-panel,
 .morning-board,
 .stat-grid,
 .content-grid {
@@ -134,6 +137,14 @@ svg {
   justify-content: space-between;
   margin: 0 auto;
   gap: 20px;
+}
+
+.topbar-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
 }
 
 .eyebrow {
@@ -178,6 +189,113 @@ h2 {
   min-height: 38px;
   padding: 0 14px;
   white-space: nowrap;
+}
+
+.primary-cta,
+.secondary-button,
+.undo-toast button,
+.project-add-button {
+  align-items: center;
+  border: 0;
+  border-radius: 8px;
+  display: inline-flex;
+  font-weight: 850;
+  gap: 8px;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 14px;
+  white-space: nowrap;
+}
+
+.primary-cta {
+  background: var(--green);
+  color: #ffffff;
+}
+
+.secondary-button {
+  background: #edf2ee;
+  color: var(--green-dark);
+}
+
+.undo-toast {
+  align-items: center;
+  background: #17201c;
+  border-radius: 8px;
+  color: #ffffff;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin: -6px auto 0;
+  min-height: 54px;
+  padding: 10px 12px 10px 16px;
+}
+
+.undo-toast span {
+  font-weight: 780;
+}
+
+.undo-toast button {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  min-height: 38px;
+}
+
+.icon-button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: inherit;
+  display: inline-flex;
+  height: 40px;
+  justify-content: center;
+  padding: 0;
+  width: 40px;
+}
+
+.danger-button {
+  color: var(--coral);
+}
+
+.plan-panel {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 16px;
+  margin: 0 auto;
+  padding: 18px;
+}
+
+.plan-form {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1.3fr) 150px 150px minmax(0, 1fr);
+}
+
+.plan-form label {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.plan-form label span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.wide-field,
+.form-actions {
+  grid-column: 1 / -1;
+}
+
+.form-actions {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
 }
 
 .morning-board {
@@ -256,19 +374,35 @@ h2 {
   margin-top: 12px;
 }
 
+.intention-strip {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(15, 79, 67, 0.16);
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+}
+
+.intention-strip span,
+.recommendation-card span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.intention-strip strong {
+  color: var(--green-dark);
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
 .task-form input:focus,
+select:focus,
 textarea:focus,
 input[type="range"]:focus-visible {
   border-color: var(--green);
   box-shadow: 0 0 0 3px rgba(24, 119, 101, 0.16);
   outline: none;
-}
-
-.focus-editor p {
-  color: var(--green-dark);
-  font-size: 0.98rem;
-  font-weight: 750;
-  margin: 0;
 }
 
 .momentum-meter {
@@ -281,6 +415,11 @@ input[type="range"]:focus-visible {
   overflow: hidden;
   padding: 16px;
   position: relative;
+}
+
+.momentum-card {
+  display: grid;
+  gap: 10px;
 }
 
 .meter-fill {
@@ -311,6 +450,49 @@ input[type="range"]:focus-visible {
 .meter-copy strong {
   font-size: 2.8rem;
   line-height: 0.9;
+}
+
+.momentum-breakdown {
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(15, 79, 67, 0.16);
+  border-radius: 8px;
+  color: var(--green-dark);
+  padding: 11px 12px;
+}
+
+.momentum-breakdown summary {
+  cursor: pointer;
+  font-size: 0.86rem;
+  font-weight: 850;
+}
+
+.momentum-breakdown dl {
+  display: grid;
+  gap: 7px;
+  margin: 10px 0;
+}
+
+.momentum-breakdown dl div {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.momentum-breakdown dt,
+.momentum-breakdown dd,
+.momentum-breakdown p {
+  font-size: 0.82rem;
+  margin: 0;
+}
+
+.momentum-breakdown dt {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.momentum-breakdown dd {
+  font-weight: 850;
 }
 
 .energy-control,
@@ -359,6 +541,36 @@ input[type="range"]:focus-visible {
   background: var(--green);
   border-color: var(--green);
   color: #ffffff;
+}
+
+.recommendation-card {
+  align-items: flex-start;
+  background: #fff9ed;
+  border: 1px solid rgba(217, 154, 25, 0.34);
+  border-radius: 8px;
+  color: #5d4614;
+  display: flex;
+  gap: 10px;
+  grid-column: 2;
+  padding: 13px;
+}
+
+.recommendation-card strong {
+  color: #17201c;
+  display: block;
+  font-size: 1rem;
+  margin: 2px 0 5px;
+}
+
+.recommendation-card p {
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.recommendation-card p + p {
+  margin-top: 5px;
 }
 
 .stat-grid {
@@ -440,10 +652,13 @@ input[type="range"]:focus-visible {
 .task-form {
   display: grid;
   gap: 10px;
-  grid-template-columns: minmax(0, 1fr) 44px;
+  grid-template-columns: minmax(190px, 1fr) 132px 104px 118px 44px;
 }
 
 .task-form input,
+.task-form select,
+.plan-form input,
+.plan-form textarea,
 textarea {
   background: #f9fbf8;
   border: 1px solid var(--line);
@@ -456,6 +671,18 @@ textarea {
 .task-form input {
   min-height: 44px;
   padding: 0 13px;
+}
+
+.task-form select,
+.plan-form input {
+  min-height: 44px;
+  padding: 0 11px;
+}
+
+.plan-form textarea {
+  min-height: 92px;
+  padding: 12px 13px;
+  resize: vertical;
 }
 
 .task-form button,
@@ -472,12 +699,134 @@ textarea {
 }
 
 .task-list,
+.schedule-list,
 .habit-grid,
 .progress-list,
 .project-list {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.task-list,
+.habit-grid,
+.schedule-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.priority-card {
+  align-items: center;
+  background:
+    linear-gradient(135deg, rgba(240, 180, 69, 0.24), rgba(255, 255, 255, 0.86)),
+    #ffffff;
+  border: 1px solid rgba(217, 154, 25, 0.42);
+  border-radius: 8px;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  padding: 16px;
+}
+
+.priority-card h3,
+.schedule-block h3 {
+  font-size: 1rem;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.priority-card h3 {
+  font-size: 1.28rem;
+  margin-bottom: 7px;
+}
+
+.priority-card span,
+.task-copy span,
+.task-copy small {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 780;
+}
+
+.priority-card label {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.priority-card input,
+.task-row input {
+  accent-color: var(--green);
+  height: 20px;
+  width: 20px;
+}
+
+.priority-card.done h3,
+.task-row.done strong {
+  text-decoration: line-through;
+}
+
+.schedule-block {
+  background: #f8faf7;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+}
+
+.compact-heading {
+  align-items: center;
+  color: var(--green-dark);
+  display: flex;
+  gap: 8px;
+}
+
+.schedule-list li {
+  align-items: center;
+  border-top: 1px solid rgba(219, 227, 220, 0.8);
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 86px minmax(0, 1fr) auto;
+  min-height: 42px;
+  padding-top: 10px;
+}
+
+.schedule-list li:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.schedule-list time {
+  color: var(--green-dark);
+  font-size: 0.84rem;
+  font-weight: 850;
+}
+
+.schedule-list span {
+  font-weight: 760;
+  min-width: 0;
+}
+
+.schedule-list em {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-style: normal;
+  font-weight: 850;
+}
+
+.schedule-list li.done {
+  opacity: 0.58;
+}
+
+.empty-state {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 700;
+  margin: 0;
 }
 
 .task-row {
@@ -487,19 +836,21 @@ textarea {
   border-radius: 8px;
   display: grid;
   gap: 11px;
-  grid-template-columns: 22px minmax(0, 1fr) auto;
-  min-height: 56px;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  min-height: 68px;
   padding: 11px 12px;
   text-align: left;
   width: 100%;
 }
 
-.task-row svg {
-  color: var(--green);
+.task-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
 }
 
-.task-row span {
-  font-weight: 760;
+.task-copy strong {
+  font-weight: 780;
   min-width: 0;
 }
 
@@ -514,13 +865,15 @@ textarea {
   white-space: nowrap;
 }
 
+.task-row-actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
 .task-row.done {
   background: #eff7f0;
   color: rgba(23, 32, 28, 0.62);
-}
-
-.task-row.done span {
-  text-decoration: line-through;
 }
 
 .habit-grid {
@@ -540,6 +893,7 @@ textarea {
   min-width: 0;
   padding: 13px;
   text-align: left;
+  width: 100%;
 }
 
 .habit-card.done {
@@ -573,6 +927,13 @@ textarea {
   font-style: normal;
   font-weight: 850;
   margin-top: auto;
+}
+
+.habit-card small,
+.progress-item small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
 }
 
 .progress-item,
@@ -675,6 +1036,17 @@ textarea {
   height: 100%;
 }
 
+.project-add-button {
+  background: #edf7f0;
+  color: var(--green-dark);
+  justify-self: start;
+  min-height: 40px;
+}
+
+.journal-block {
+  display: grid;
+}
+
 .text-field {
   display: grid;
   gap: 8px;
@@ -685,6 +1057,10 @@ textarea {
   min-height: 150px;
   padding: 12px 13px;
   resize: vertical;
+}
+
+.plan-form textarea {
+  min-height: 92px;
 }
 
 @media (max-width: 980px) {
@@ -710,8 +1086,13 @@ textarea {
   }
 
   .morning-board,
-  .content-grid {
+  .content-grid,
+  .plan-form {
     grid-template-columns: 1fr;
+  }
+
+  .recommendation-card {
+    grid-column: auto;
   }
 
   .task-panel,
@@ -730,6 +1111,11 @@ textarea {
     flex-direction: column;
   }
 
+  .topbar-actions {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
   .workspace {
     gap: 16px;
     padding: 14px;
@@ -741,17 +1127,34 @@ textarea {
   }
 
   .stat-grid,
-  .habit-grid {
+  .habit-grid,
+  .task-form {
     grid-template-columns: 1fr;
   }
 
-  .task-row {
-    grid-template-columns: 22px minmax(0, 1fr);
+  .task-form button {
+    width: 100%;
   }
 
-  .task-row em {
+  .task-row {
+    align-items: flex-start;
+    grid-template-columns: 24px minmax(0, 1fr);
+  }
+
+  .task-row-actions {
     grid-column: 2;
     justify-self: start;
+  }
+
+  .priority-card,
+  .undo-toast {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .schedule-list li {
+    align-items: flex-start;
+    grid-template-columns: 1fr;
   }
 
   .meter-copy {

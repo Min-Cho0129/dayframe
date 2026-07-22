@@ -13,7 +13,7 @@
     "build:vercel": "next build",
     "start:vercel": "next start",
     "test": "npm run test:worker && npm run test:vercel",
-    "test:worker": "npm run build && node --test tests/rendered-html.test.mjs",
+    "test:worker": "npm run build && node --test tests/*.test.mjs",
     "test:vercel": "npm run build:vercel",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern gh-pages-dist",
     "db:generate": "drizzle-kit generate"

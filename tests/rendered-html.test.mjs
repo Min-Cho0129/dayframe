@@ -33,15 +33,23 @@ test("server-renders the morning productivity app", async () => {
   const html = await response.text();
   assert.match(html, /<html lang="en">/i);
   assert.match(html, /<title>Dayframe<\/title>/i);
-  assert.match(html, /morning productivity dashboard/i);
+  assert.match(html, /daily planning app/i);
+  assert.match(html, /Plan today/);
   assert.match(html, /Today&#x27;s tasks/);
+  assert.match(html, /Today&#x27;s priority/);
+  assert.match(html, /Today&#x27;s schedule/);
   assert.match(html, /Habit tracker/);
   assert.match(html, /Goals/);
   assert.match(html, /Projects/);
+  assert.match(html, /Add next action to today/);
   assert.match(html, /Notes &amp; journal/);
+  assert.match(html, /Evening reflection/);
   assert.match(html, /Daily quote/);
-  assert.match(html, /Refreshes every day/);
+  assert.match(html, /Refreshes at local midnight/);
   assert.match(html, /Today&#x27;s momentum/);
+  assert.match(html, /How momentum is calculated/);
+  assert.match(html, /Energy recommendation/);
+  assert.match(html, /Saved on this device/);
   assert.doesNotMatch(html, /[가-힣]/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|react-loading-skeleton/i);
 });
@@ -55,9 +63,10 @@ test("keeps starter preview code out of the app surface", async () => {
   ]);
 
   assert.deepEqual(previewFiles, []);
-  assert.match(page, /dayframe-app-v2/);
+  assert.match(page, /dayframe-app-v3/);
   assert.match(page, /dailyQuotes/);
   assert.match(page, /getDailyQuote/);
+  assert.match(page, /getLocalDateKey/);
   assert.match(page, /useSyncExternalStore/);
   assert.match(layout, /title:\s*"Dayframe"/);
   assert.doesNotMatch(page, /[가-힣]/);

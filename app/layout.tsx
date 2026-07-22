@@ -4,18 +4,18 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Dayframe",
   description:
-    "A morning productivity dashboard for tasks, goals, habits, projects, notes, and journaling.",
+    "A daily planning app for time-blocked tasks, goals, habits, projects, notes, and journaling.",
   openGraph: {
     title: "Dayframe",
     description:
-      "Frame your day with a focused morning dashboard for planning, routines, and reflection.",
+      "Frame your day with time-blocked tasks, routines, projects, and reflection.",
     type: "website",
   },
   twitter: {
     card: "summary",
     title: "Dayframe",
     description:
-      "Plan tasks, track habits, move projects forward, and journal from one focused dashboard.",
+      "Plan tasks, track habits, move projects forward, and journal from one focused daily planner.",
   },
   icons: {
     icon: "/favicon.svg",

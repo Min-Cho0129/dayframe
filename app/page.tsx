@@ -1,11 +1,13 @@
 "use client";
 
 import {
+  BatteryCharging,
   CalendarDays,
   Check,
   ChevronRight,
   Circle,
   ClipboardList,
+  Clock3,
   Flame,
   FolderKanban,
   Gauge,
@@ -16,16 +18,33 @@ import {
   Sunrise,
   Target,
   TimerReset,
+  Trash2,
   TrendingUp,
+  Undo2,
+  X,
 } from "lucide-react";
 import type { FormEvent, ReactNode } from "react";
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import {
+  formatLocalDate,
+  getLocalDateKey,
+  getMillisecondsUntilNextLocalDay,
+} from "./date-utils.js";
+
+type Priority = "low" | "medium" | "high";
+type Mood = "calm" | "clear" | "bold" | "tired";
 
 type Task = {
   id: string;
   title: string;
   area: string;
   done: boolean;
+  scheduledTime: string;
+  durationMinutes: number;
+  priority: Priority;
+  projectId?: string;
+  isCritical?: boolean;
+  completedAt?: string;
 };
 
 type Habit = {
@@ -51,8 +70,6 @@ type Project = {
   nextAction: string;
 };
 
-type Mood = "calm" | "clear" | "bold";
-
 type DailyQuote = {
   text: string;
   tag: string;
@@ -67,10 +84,37 @@ type AppState = {
   goals: Goal[];
   projects: Project[];
   journal: string;
+  eveningJournal: string;
   note: string;
 };
 
-const STORAGE_KEY = "dayframe-app-v2";
+type PlanDraft = {
+  criticalTitle: string;
+  scheduledTime: string;
+  durationMinutes: number;
+  extraTask: string;
+  intention: string;
+};
+
+type TaskDraft = {
+  title: string;
+  scheduledTime: string;
+  durationMinutes: number;
+  priority: Priority;
+};
+
+type TodaySnapshot = {
+  dateKey: string;
+  label: string;
+};
+
+type UndoState = {
+  message: string;
+  previous: AppState;
+};
+
+const BASE_STORAGE_KEY = "dayframe-app-v3";
+const LEGACY_STORAGE_KEY = "dayframe-app-v2";
 const storeListeners = new Set<() => void>();
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -207,18 +251,29 @@ const defaultState: AppState = {
       title: "Choose the one critical task for today",
       area: "Focus",
       done: false,
+      scheduledTime: "09:00",
+      durationMinutes: 90,
+      priority: "high",
+      isCritical: true,
     },
     {
       id: "task-2",
       title: "Move one active project forward",
       area: "Project",
       done: false,
+      scheduledTime: "11:00",
+      durationMinutes: 45,
+      priority: "medium",
+      projectId: "project-1",
     },
     {
       id: "task-3",
       title: "Write a 10-minute evening reflection",
       area: "Review",
       done: false,
+      scheduledTime: "20:30",
+      durationMinutes: 10,
+      priority: "low",
     },
   ],
   habits: [
@@ -276,6 +331,7 @@ const defaultState: AppState = {
   ],
   journal:
     "Today is not about being perfect. It is about starting clean and creating momentum in the first 30 minutes.",
+  eveningJournal: "What worked today, and what should change tomorrow?",
   note: "Remember: fewer commitments make execution easier.",
 };
 
@@ -283,33 +339,113 @@ const moodLabels: Record<Mood, string> = {
   calm: "Calm",
   clear: "Clear",
   bold: "Bold",
+  tired: "Tired",
 };
 
-const encouragement: Record<Mood, string> = {
-  calm: "Slow the pace and start with the smallest next action.",
-  clear: "A clear standard keeps your energy from leaking.",
-  bold: "Adjusting after action is faster than waiting before it.",
+const moodRecommendations: Record<Mood, string> = {
+  calm: "Use calm for planning, writing, and thoughtful cleanup.",
+  clear: "Use clear for focused work that needs sustained attention.",
+  bold: "Use bold for hard decisions, outreach, and high-friction tasks.",
+  tired: "Use tired for light admin, reset tasks, and small repeatable steps.",
 };
 
-function normalizeState(value: Partial<AppState>): AppState {
+const priorityLabels: Record<Priority, string> = {
+  low: "Low priority",
+  medium: "Medium priority",
+  high: "High priority",
+};
+
+function normalizePriority(value: unknown): Priority {
+  return value === "low" || value === "medium" || value === "high"
+    ? value
+    : "medium";
+}
+
+function normalizeMood(value: unknown): Mood {
+  return value === "calm" ||
+    value === "clear" ||
+    value === "bold" ||
+    value === "tired"
+    ? value
+    : "clear";
+}
+
+function normalizeTask(task: Partial<Task>, index: number): Task {
+  const fallbackSchedule = ["09:00", "11:00", "20:30"][index] ?? "";
+  const fallbackPriority: Priority = task.area === "Focus" ? "high" : "medium";
+
+  return {
+    id: typeof task.id === "string" ? task.id : `task-${index + 1}`,
+    title:
+      typeof task.title === "string" && task.title.trim()
+        ? task.title
+        : defaultState.tasks[index]?.title ?? "Untitled task",
+    area: typeof task.area === "string" ? task.area : "Today",
+    done: Boolean(task.done),
+    scheduledTime:
+      typeof task.scheduledTime === "string"
+        ? task.scheduledTime
+        : fallbackSchedule,
+    durationMinutes:
+      typeof task.durationMinutes === "number" &&
+      Number.isFinite(task.durationMinutes)
+        ? task.durationMinutes
+        : defaultState.tasks[index]?.durationMinutes ?? 30,
+    priority: normalizePriority(task.priority ?? fallbackPriority),
+    projectId: typeof task.projectId === "string" ? task.projectId : undefined,
+    isCritical: Boolean(task.isCritical ?? (index === 0 && task.area === "Focus")),
+    completedAt:
+      typeof task.completedAt === "string" ? task.completedAt : undefined,
+  };
+}
+
+function normalizeState(value: Partial<AppState> = {}): AppState {
   return {
     ...defaultState,
     ...value,
-    tasks: Array.isArray(value.tasks) ? value.tasks : defaultState.tasks,
+    energy:
+      typeof value.energy === "number" && Number.isFinite(value.energy)
+        ? clamp(value.energy, 1, 5)
+        : defaultState.energy,
+    mood: normalizeMood(value.mood),
+    tasks: Array.isArray(value.tasks)
+      ? value.tasks.map((task, index) => normalizeTask(task, index))
+      : defaultState.tasks,
     habits: Array.isArray(value.habits) ? value.habits : defaultState.habits,
     goals: Array.isArray(value.goals) ? value.goals : defaultState.goals,
     projects: Array.isArray(value.projects)
       ? value.projects
       : defaultState.projects,
+    journal:
+      typeof value.journal === "string" ? value.journal : defaultState.journal,
+    eveningJournal:
+      typeof value.eveningJournal === "string"
+        ? value.eveningJournal
+        : defaultState.eveningJournal,
+    note: typeof value.note === "string" ? value.note : defaultState.note,
   };
+}
+
+function storageKeyForToday() {
+  return `${BASE_STORAGE_KEY}:${getLocalDateKey()}`;
 }
 
 function readStoredState(): AppState {
   if (typeof window === "undefined") return defaultState;
 
   try {
-    const saved = window.localStorage.getItem(STORAGE_KEY);
-    return saved ? normalizeState(JSON.parse(saved)) : defaultState;
+    const saved = window.localStorage.getItem(storageKeyForToday());
+    if (saved) return normalizeState(JSON.parse(saved));
+
+    const legacy = window.localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (legacy) {
+      const migrated = normalizeState(JSON.parse(legacy));
+      window.localStorage.setItem(storageKeyForToday(), JSON.stringify(migrated));
+      window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+      return migrated;
+    }
+
+    return defaultState;
   } catch {
     return defaultState;
   }
@@ -340,7 +476,7 @@ function subscribeToStore(listener: () => void) {
 
 function writeStoredState(next: AppState) {
   if (typeof window !== "undefined") {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    window.localStorage.setItem(storageKeyForToday(), JSON.stringify(next));
   }
   storeListeners.forEach((listener) => listener());
 }
@@ -349,16 +485,157 @@ function clamp(value: number, min = 0, max = 100) {
   return Math.min(max, Math.max(min, value));
 }
 
-function getDailyQuote(date: Date) {
-  const dayNumber = Math.floor(
-    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / MS_PER_DAY,
-  );
+function clampMinutes(value: number) {
+  return Math.round(clamp(value, 5, 480));
+}
 
+function getTodaySnapshot(): TodaySnapshot {
+  const date = new Date();
+  return {
+    dateKey: getLocalDateKey(date),
+    label: formatLocalDate(date),
+  };
+}
+
+function getDailyQuote(dateKey: string) {
+  if (!dateKey) return dailyQuotes[0];
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const dayNumber = Math.floor(Date.UTC(year, month - 1, day) / MS_PER_DAY);
   return dailyQuotes[dayNumber % dailyQuotes.length];
 }
 
+function getCriticalTask(tasks: Task[]) {
+  return (
+    tasks.find((task) => task.isCritical) ??
+    tasks.find((task) => task.priority === "high") ??
+    tasks.find((task) => !task.done) ??
+    tasks[0]
+  );
+}
+
+function compareTasks(a: Task, b: Task) {
+  if (a.done !== b.done) return a.done ? 1 : -1;
+  if (Boolean(a.isCritical) !== Boolean(b.isCritical)) {
+    return a.isCritical ? -1 : 1;
+  }
+  if (a.scheduledTime && b.scheduledTime) {
+    return a.scheduledTime.localeCompare(b.scheduledTime);
+  }
+  if (a.scheduledTime) return -1;
+  if (b.scheduledTime) return 1;
+  return a.title.localeCompare(b.title);
+}
+
+function formatTimeLabel(time: string) {
+  if (!time) return "Unscheduled";
+  const [hour, minute] = time.split(":").map(Number);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return time;
+
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(2026, 0, 1, hour, minute));
+}
+
+function formatDuration(minutes: number) {
+  const safeMinutes = clampMinutes(minutes);
+  if (safeMinutes < 60) return `${safeMinutes} min`;
+
+  const hours = Math.floor(safeMinutes / 60);
+  const remainder = safeMinutes % 60;
+  return `${hours} hr${hours > 1 ? "s" : ""}${remainder ? ` ${remainder} min` : ""}`;
+}
+
+function formatTaskMeta(task: Task) {
+  return `${formatTimeLabel(task.scheduledTime)} · ${formatDuration(
+    task.durationMinutes,
+  )} · ${priorityLabels[task.priority]}`;
+}
+
+function formatCompletedAt() {
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date());
+}
+
+function getEnergyRecommendation(energy: number, mood: Mood) {
+  if (energy >= 4) {
+    return {
+      label: "High energy detected",
+      advice: "Complete your critical focus task before lower-value work.",
+      moodHint: moodRecommendations[mood],
+    };
+  }
+
+  if (energy >= 2) {
+    return {
+      label: "Moderate energy",
+      advice: "Break the main task into a 25-minute session and protect one win.",
+      moodHint: moodRecommendations[mood],
+    };
+  }
+
+  return {
+    label: "Low energy",
+    advice: "Choose one small task and postpone nonessential work.",
+    moodHint: moodRecommendations[mood],
+  };
+}
+
+function createTask(overrides: Partial<Task>): Task {
+  return {
+    id: `task-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    title: "Untitled task",
+    area: "Today",
+    done: false,
+    scheduledTime: "",
+    durationMinutes: 30,
+    priority: "medium",
+    ...overrides,
+  };
+}
+
 export default function Home() {
-  const [taskDraft, setTaskDraft] = useState("");
+  const [today, setToday] = useState<TodaySnapshot>({
+    dateKey: "",
+    label: "Today",
+  });
+  const [planOpen, setPlanOpen] = useState(false);
+  const [undo, setUndo] = useState<UndoState | null>(null);
+  const [taskDraft, setTaskDraft] = useState<TaskDraft>({
+    title: "",
+    scheduledTime: "",
+    durationMinutes: 30,
+    priority: "medium",
+  });
+  const [planDraft, setPlanDraft] = useState<PlanDraft>({
+    criticalTitle: "",
+    scheduledTime: "09:00",
+    durationMinutes: 90,
+    extraTask: "",
+    intention: "",
+  });
+
+  useEffect(() => {
+    let rolloverTimer: number | undefined;
+
+    function refreshLocalDay() {
+      setToday(getTodaySnapshot());
+      storeListeners.forEach((listener) => listener());
+      rolloverTimer = window.setTimeout(
+        refreshLocalDay,
+        getMillisecondsUntilNextLocalDay() + 1000,
+      );
+    }
+
+    refreshLocalDay();
+
+    return () => {
+      if (rolloverTimer) window.clearTimeout(rolloverTimer);
+    };
+  }, []);
+
   const stateSnapshot = useSyncExternalStore(
     subscribeToStore,
     getStoredSnapshot,
@@ -369,17 +646,6 @@ export default function Home() {
     [stateSnapshot],
   );
 
-  const todayLabel = useMemo(
-    () =>
-      new Intl.DateTimeFormat("en-US", {
-        month: "long",
-        day: "numeric",
-        weekday: "long",
-      }).format(new Date()),
-    [],
-  );
-  const dailyQuote = useMemo(() => getDailyQuote(new Date()), []);
-
   const stats = useMemo(() => {
     const completedTasks = state.tasks.filter((task) => task.done).length;
     const taskRate =
@@ -387,67 +653,207 @@ export default function Home() {
     const completedHabits = state.habits.filter((habit) => habit.doneToday).length;
     const habitRate =
       state.habits.length === 0 ? 0 : completedHabits / state.habits.length;
-    const goalRate =
+    const goalAverage =
       state.goals.reduce((sum, goal) => sum + goal.progress, 0) /
-      Math.max(state.goals.length, 1) /
-      100;
-    const momentum = Math.round(taskRate * 36 + habitRate * 34 + goalRate * 30);
+      Math.max(state.goals.length, 1);
+    const dailyCheckInComplete =
+      Boolean(state.focus.trim()) && state.energy > 0 && Boolean(state.mood);
+    const taskMomentum = Math.round(taskRate * 50);
+    const habitMomentum = Math.round(habitRate * 30);
+    const checkInMomentum = dailyCheckInComplete ? 20 : 0;
 
     return {
       completedTasks,
       totalTasks: state.tasks.length,
       completedHabits,
       totalHabits: state.habits.length,
-      momentum,
+      goalAverage,
+      taskMomentum,
+      habitMomentum,
+      checkInMomentum,
+      momentum: taskMomentum + habitMomentum + checkInMomentum,
     };
-  }, [state.goals, state.habits, state.tasks]);
+  }, [state.energy, state.focus, state.goals, state.habits, state.mood, state.tasks]);
 
-  function updateState(updater: (current: AppState) => AppState) {
-    writeStoredState(updater(readStoredState()));
+  const dailyQuote = useMemo(() => getDailyQuote(today.dateKey), [today.dateKey]);
+  const criticalTask = useMemo(() => getCriticalTask(state.tasks), [state.tasks]);
+  const visibleTasks = useMemo(
+    () =>
+      [...state.tasks]
+        .filter((task) => task.id !== criticalTask?.id)
+        .sort(compareTasks),
+    [criticalTask?.id, state.tasks],
+  );
+  const scheduledTasks = useMemo(
+    () => [...state.tasks].filter((task) => task.scheduledTime).sort(compareTasks),
+    [state.tasks],
+  );
+  const energyRecommendation = useMemo(
+    () => getEnergyRecommendation(state.energy, state.mood),
+    [state.energy, state.mood],
+  );
+
+  function updateState(
+    updater: (current: AppState) => AppState,
+    undoMessage?: string,
+  ) {
+    const previous = readStoredState();
+    const next = updater(previous);
+    writeStoredState(next);
+    if (undoMessage) setUndo({ message: undoMessage, previous });
+  }
+
+  function openPlanPanel() {
+    setPlanDraft({
+      criticalTitle: criticalTask?.title ?? "",
+      scheduledTime: criticalTask?.scheduledTime || "09:00",
+      durationMinutes: criticalTask?.durationMinutes || 90,
+      extraTask: "",
+      intention: state.focus,
+    });
+    setPlanOpen(true);
+  }
+
+  function submitPlan(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const criticalTitle = planDraft.criticalTitle.trim();
+    const extraTask = planDraft.extraTask.trim();
+    const intention = planDraft.intention.trim();
+
+    if (!criticalTitle && !extraTask && !intention) return;
+
+    updateState((current) => {
+      const currentCritical = getCriticalTask(current.tasks);
+      let tasks: Task[] = current.tasks.map((task) => ({
+        ...task,
+        isCritical: task.id === currentCritical?.id,
+      }));
+
+      if (criticalTitle) {
+        if (currentCritical) {
+          tasks = tasks.map((task) =>
+            task.id === currentCritical.id
+              ? {
+                  ...task,
+                  title: criticalTitle,
+                  area: "Focus",
+                  scheduledTime: planDraft.scheduledTime,
+                  durationMinutes: clampMinutes(planDraft.durationMinutes),
+                  priority: "high",
+                  isCritical: true,
+                }
+              : { ...task, isCritical: false },
+          );
+        } else {
+          tasks = [
+            createTask({
+              title: criticalTitle,
+              area: "Focus",
+              scheduledTime: planDraft.scheduledTime,
+              durationMinutes: clampMinutes(planDraft.durationMinutes),
+              priority: "high",
+              isCritical: true,
+            }),
+            ...tasks.map((task) => ({ ...task, isCritical: false })),
+          ];
+        }
+      }
+
+      if (extraTask) {
+        tasks = [
+          ...tasks,
+          createTask({
+            title: extraTask,
+            area: "Today",
+            durationMinutes: 30,
+            priority: "medium",
+          }),
+        ];
+      }
+
+      return {
+        ...current,
+        focus: intention || current.focus,
+        tasks,
+      };
+    }, "Plan updated.");
+
+    setPlanOpen(false);
   }
 
   function addTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const title = taskDraft.trim();
+    const title = taskDraft.title.trim();
     if (!title) return;
 
-    updateState((current) => ({
-      ...current,
-      tasks: [
-        {
-          id: `task-${Date.now()}`,
-          title,
-          area: "Today",
-          done: false,
-        },
-        ...current.tasks,
-      ],
-    }));
-    setTaskDraft("");
+    updateState(
+      (current) => ({
+        ...current,
+        tasks: [
+          createTask({
+            title,
+            area: taskDraft.priority === "high" ? "Focus" : "Today",
+            scheduledTime: taskDraft.scheduledTime,
+            durationMinutes: clampMinutes(taskDraft.durationMinutes),
+            priority: taskDraft.priority,
+          }),
+          ...current.tasks,
+        ],
+      }),
+      "Task added.",
+    );
+    setTaskDraft({
+      title: "",
+      scheduledTime: "",
+      durationMinutes: 30,
+      priority: "medium",
+    });
   }
 
   function toggleTask(id: string) {
-    updateState((current) => ({
-      ...current,
-      tasks: current.tasks.map((task) =>
-        task.id === id ? { ...task, done: !task.done } : task,
-      ),
-    }));
+    updateState(
+      (current) => ({
+        ...current,
+        tasks: current.tasks.map((task) => {
+          if (task.id !== id) return task;
+          const done = !task.done;
+          return {
+            ...task,
+            done,
+            completedAt: done ? formatCompletedAt() : undefined,
+          };
+        }),
+      }),
+      "Task status changed.",
+    );
+  }
+
+  function deleteTask(id: string) {
+    updateState(
+      (current) => ({
+        ...current,
+        tasks: current.tasks.filter((task) => task.id !== id),
+      }),
+      "Task deleted.",
+    );
   }
 
   function toggleHabit(id: string) {
-    updateState((current) => ({
-      ...current,
-      habits: current.habits.map((habit) => {
-        if (habit.id !== id) return habit;
-        const doneToday = !habit.doneToday;
-        return {
-          ...habit,
-          doneToday,
-          streak: doneToday ? habit.streak + 1 : Math.max(0, habit.streak - 1),
-        };
+    updateState(
+      (current) => ({
+        ...current,
+        habits: current.habits.map((habit) => {
+          if (habit.id !== id) return habit;
+          const doneToday = !habit.doneToday;
+          return {
+            ...habit,
+            doneToday,
+            streak: doneToday ? habit.streak + 1 : Math.max(0, habit.streak - 1),
+          };
+        }),
       }),
-    }));
+      "Habit status changed.",
+    );
   }
 
   function updateGoal(id: string, progress: number) {
@@ -466,6 +872,42 @@ export default function Home() {
         project.id === id ? { ...project, progress: clamp(progress) } : project,
       ),
     }));
+  }
+
+  function addProjectNextAction(project: Project) {
+    updateState(
+      (current) => ({
+        ...current,
+        tasks: [
+          createTask({
+            title: project.nextAction,
+            area: "Project",
+            durationMinutes: 45,
+            priority: "medium",
+            projectId: project.id,
+          }),
+          ...current.tasks,
+        ],
+      }),
+      "Project next action added to today.",
+    );
+  }
+
+  function updateJournalField(field: "journal" | "eveningJournal" | "note", value: string) {
+    updateState((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
+
+  function restoreUndo() {
+    if (!undo) return;
+    writeStoredState(undo.previous);
+    setUndo(null);
+  }
+
+  function getProjectName(projectId?: string) {
+    return state.projects.find((project) => project.id === projectId)?.name;
   }
 
   return (
@@ -493,37 +935,180 @@ export default function Home() {
       <section className="workspace">
         <header className="topbar" id="today">
           <div>
-            <p className="eyebrow">{todayLabel}</p>
+            <p className="eyebrow">{today.label}</p>
             <h1>Dayframe</h1>
           </div>
-          <div className="sync-pill">
-            <Check size={16} />
-            Saved
+          <div className="topbar-actions">
+            <button className="primary-cta" onClick={openPlanPanel} type="button">
+              <Plus size={18} />
+              Plan today
+            </button>
+            <div className="sync-pill" role="status" aria-live="polite">
+              <Check size={16} />
+              Saved on this device
+            </div>
           </div>
         </header>
+
+        {undo ? (
+          <div className="undo-toast" role="status" aria-live="polite">
+            <span>{undo.message}</span>
+            <button onClick={restoreUndo} type="button">
+              <Undo2 size={16} />
+              Undo
+            </button>
+            <button
+              aria-label="Dismiss undo message"
+              className="icon-button"
+              onClick={() => setUndo(null)}
+              type="button"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        ) : null}
+
+        {planOpen ? (
+          <section className="plan-panel" aria-labelledby="plan-heading">
+            <div>
+              <p className="eyebrow">Morning planning</p>
+              <h2 id="plan-heading">Plan today</h2>
+            </div>
+            <form className="plan-form" onSubmit={submitPlan}>
+              <label>
+                <span>Today&apos;s most important task</span>
+                <input
+                  onChange={(event) =>
+                    setPlanDraft((current) => ({
+                      ...current,
+                      criticalTitle: event.target.value,
+                    }))
+                  }
+                  value={planDraft.criticalTitle}
+                />
+              </label>
+              <label>
+                <span>Start time</span>
+                <input
+                  onChange={(event) =>
+                    setPlanDraft((current) => ({
+                      ...current,
+                      scheduledTime: event.target.value,
+                    }))
+                  }
+                  type="time"
+                  value={planDraft.scheduledTime}
+                />
+              </label>
+              <label>
+                <span>Focus duration</span>
+                <input
+                  min="5"
+                  onChange={(event) =>
+                    setPlanDraft((current) => ({
+                      ...current,
+                      durationMinutes: Number(event.target.value),
+                    }))
+                  }
+                  step="5"
+                  type="number"
+                  value={planDraft.durationMinutes}
+                />
+              </label>
+              <label>
+                <span>Additional task</span>
+                <input
+                  onChange={(event) =>
+                    setPlanDraft((current) => ({
+                      ...current,
+                      extraTask: event.target.value,
+                    }))
+                  }
+                  placeholder="Optional"
+                  value={planDraft.extraTask}
+                />
+              </label>
+              <label className="wide-field">
+                <span>Today&apos;s intention</span>
+                <textarea
+                  onChange={(event) =>
+                    setPlanDraft((current) => ({
+                      ...current,
+                      intention: event.target.value,
+                    }))
+                  }
+                  value={planDraft.intention}
+                />
+              </label>
+              <div className="form-actions">
+                <button className="secondary-button" onClick={() => setPlanOpen(false)} type="button">
+                  Cancel
+                </button>
+                <button className="primary-cta" type="submit">
+                  <Check size={17} />
+                  Save plan
+                </button>
+              </div>
+            </form>
+          </section>
+        ) : null}
 
         <section className="morning-board" aria-label="Morning dashboard summary">
           <div className="focus-editor">
             <div className="quote-label">
               <span>Daily quote</span>
-              <em>Refreshes every day</em>
+              <em>Refreshes at local midnight</em>
             </div>
             <blockquote className="daily-quote">
               <p>{dailyQuote.text}</p>
               <cite>{dailyQuote.tag}</cite>
             </blockquote>
-            <p>{encouragement[state.mood]}</p>
+            <div className="intention-strip">
+              <span>Today&apos;s intention</span>
+              <strong>{state.focus}</strong>
+            </div>
           </div>
 
-          <div className="momentum-meter" aria-label={`Momentum ${stats.momentum}%`}>
+          <div className="momentum-card">
             <div
-              className="meter-fill"
-              style={{ width: `${stats.momentum}%` }}
-            />
-            <div className="meter-copy">
-              <span>Today&apos;s momentum</span>
-              <strong>{stats.momentum}%</strong>
+              className="momentum-meter"
+              role="progressbar"
+              aria-label="Today's momentum"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={stats.momentum}
+            >
+              <div
+                className="meter-fill"
+                style={{ width: `${stats.momentum}%` }}
+              />
+              <div className="meter-copy">
+                <span>Today&apos;s momentum</span>
+                <strong>{stats.momentum}%</strong>
+              </div>
             </div>
+            <details className="momentum-breakdown">
+              <summary>How momentum is calculated</summary>
+              <dl>
+                <div>
+                  <dt>Tasks</dt>
+                  <dd>
+                    {stats.completedTasks}/{stats.totalTasks} +{stats.taskMomentum}%
+                  </dd>
+                </div>
+                <div>
+                  <dt>Habits</dt>
+                  <dd>
+                    {stats.completedHabits}/{stats.totalHabits} +{stats.habitMomentum}%
+                  </dd>
+                </div>
+                <div>
+                  <dt>Daily check-in</dt>
+                  <dd>+{stats.checkInMomentum}%</dd>
+                </div>
+              </dl>
+              <p>Formula: 50% tasks, 30% habits, 20% daily check-in.</p>
+            </details>
           </div>
 
           <div className="energy-control">
@@ -547,6 +1132,7 @@ export default function Home() {
           <div className="mood-switcher" aria-label="Daily mindset">
             {(Object.keys(moodLabels) as Mood[]).map((mood) => (
               <button
+                aria-pressed={state.mood === mood}
                 className={state.mood === mood ? "active" : ""}
                 key={mood}
                 onClick={() =>
@@ -561,6 +1147,16 @@ export default function Home() {
               </button>
             ))}
           </div>
+
+          <article className="recommendation-card">
+            <BatteryCharging size={18} />
+            <div>
+              <span>Energy recommendation</span>
+              <strong>{energyRecommendation.label}</strong>
+              <p>{energyRecommendation.advice}</p>
+              <p>{energyRecommendation.moodHint}</p>
+            </div>
+          </article>
         </section>
 
         <section className="stat-grid" aria-label="Daily status">
@@ -577,10 +1173,7 @@ export default function Home() {
           <StatusTile
             icon={<TrendingUp size={20} />}
             label="Goal average"
-            value={`${Math.round(
-              state.goals.reduce((sum, goal) => sum + goal.progress, 0) /
-                Math.max(state.goals.length, 1),
-            )}%`}
+            value={`${Math.round(stats.goalAverage)}%`}
           />
           <StatusTile
             icon={<Gauge size={20} />}
@@ -590,76 +1183,178 @@ export default function Home() {
         </section>
 
         <div className="content-grid">
-          <section className="panel task-panel" id="tasks">
+          <section className="panel task-panel" id="tasks" aria-labelledby="tasks-heading">
             <div className="panel-heading">
               <div>
                 <p className="eyebrow">Daily command</p>
-                <h2>Today&apos;s tasks</h2>
+                <h2 id="tasks-heading">Today&apos;s tasks</h2>
               </div>
               <Sparkles size={20} />
             </div>
 
             <form className="task-form" onSubmit={addTask}>
               <input
-                aria-label="New task"
-                onChange={(event) => setTaskDraft(event.target.value)}
+                aria-label="New task title"
+                onChange={(event) =>
+                  setTaskDraft((current) => ({
+                    ...current,
+                    title: event.target.value,
+                  }))
+                }
                 placeholder="Add a task that just came to mind"
-                value={taskDraft}
+                value={taskDraft.title}
               />
+              <input
+                aria-label="New task scheduled time"
+                onChange={(event) =>
+                  setTaskDraft((current) => ({
+                    ...current,
+                    scheduledTime: event.target.value,
+                  }))
+                }
+                type="time"
+                value={taskDraft.scheduledTime}
+              />
+              <input
+                aria-label="New task estimated minutes"
+                min="5"
+                onChange={(event) =>
+                  setTaskDraft((current) => ({
+                    ...current,
+                    durationMinutes: Number(event.target.value),
+                  }))
+                }
+                step="5"
+                type="number"
+                value={taskDraft.durationMinutes}
+              />
+              <select
+                aria-label="New task priority"
+                onChange={(event) =>
+                  setTaskDraft((current) => ({
+                    ...current,
+                    priority: event.target.value as Priority,
+                  }))
+                }
+                value={taskDraft.priority}
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
               <button aria-label="Add task" type="submit">
                 <Plus size={18} />
               </button>
             </form>
 
-            <div className="task-list">
-              {state.tasks.map((task) => (
-                <button
-                  className={`task-row ${task.done ? "done" : ""}`}
-                  key={task.id}
-                  onClick={() => toggleTask(task.id)}
-                  type="button"
-                >
-                  {task.done ? <Check size={18} /> : <Circle size={18} />}
-                  <span>{task.title}</span>
-                  <em>{task.area}</em>
-                </button>
-              ))}
-            </div>
+            {criticalTask ? (
+              <article className={`priority-card ${criticalTask.done ? "done" : ""}`}>
+                <div>
+                  <p className="eyebrow">Today&apos;s priority</p>
+                  <h3>{criticalTask.title}</h3>
+                  <span>{formatTaskMeta(criticalTask)}</span>
+                </div>
+                <label>
+                  <input
+                    checked={criticalTask.done}
+                    onChange={() => toggleTask(criticalTask.id)}
+                    type="checkbox"
+                  />
+                  <span>Done</span>
+                </label>
+              </article>
+            ) : null}
+
+            <section className="schedule-block" aria-labelledby="schedule-heading">
+              <div className="compact-heading">
+                <Clock3 size={17} />
+                <h3 id="schedule-heading">Today&apos;s schedule</h3>
+              </div>
+              {scheduledTasks.length ? (
+                <ol className="schedule-list">
+                  {scheduledTasks.map((task) => (
+                    <li className={task.done ? "done" : ""} key={`schedule-${task.id}`}>
+                      <time>{formatTimeLabel(task.scheduledTime)}</time>
+                      <span>{task.title}</span>
+                      <em>{formatDuration(task.durationMinutes)}</em>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p className="empty-state">Add a time to a task to build your day.</p>
+              )}
+            </section>
+
+            <ul className="task-list" aria-label="Task list">
+              {visibleTasks.map((task) => {
+                const projectName = getProjectName(task.projectId);
+                return (
+                  <li className={`task-row ${task.done ? "done" : ""}`} key={task.id}>
+                    <input
+                      aria-label={`Mark ${task.title} complete`}
+                      checked={task.done}
+                      onChange={() => toggleTask(task.id)}
+                      type="checkbox"
+                    />
+                    <div className="task-copy">
+                      <strong>{task.title}</strong>
+                      <span>{formatTaskMeta(task)}</span>
+                      {projectName ? <small>{projectName}</small> : null}
+                      {task.completedAt ? <small>Completed at {task.completedAt}</small> : null}
+                    </div>
+                    <div className="task-row-actions">
+                      <em>{task.area}</em>
+                      <button
+                        aria-label={`Delete ${task.title}`}
+                        className="icon-button danger-button"
+                        onClick={() => deleteTask(task.id)}
+                        type="button"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
           </section>
 
-          <section className="panel habit-panel">
+          <section className="panel habit-panel" aria-labelledby="habits-heading">
             <div className="panel-heading">
               <div>
                 <p className="eyebrow">Streak builder</p>
-                <h2>Habit tracker</h2>
+                <h2 id="habits-heading">Habit tracker</h2>
               </div>
               <TimerReset size={20} />
             </div>
 
-            <div className="habit-grid">
+            <ul className="habit-grid">
               {state.habits.map((habit) => (
-                <button
-                  className={`habit-card ${habit.doneToday ? "done" : ""}`}
-                  key={habit.id}
-                  onClick={() => toggleHabit(habit.id)}
-                  type="button"
-                >
-                  <span className="habit-status">
-                    {habit.doneToday ? <Check size={16} /> : <Circle size={16} />}
-                  </span>
-                  <strong>{habit.name}</strong>
-                  <span>{habit.target}</span>
-                  <em>{habit.streak} days</em>
-                </button>
+                <li key={habit.id}>
+                  <button
+                    aria-label={`${habit.doneToday ? "Undo" : "Complete"} ${habit.name}`}
+                    className={`habit-card ${habit.doneToday ? "done" : ""}`}
+                    onClick={() => toggleHabit(habit.id)}
+                    type="button"
+                  >
+                    <span className="habit-status">
+                      {habit.doneToday ? <Check size={16} /> : <Circle size={16} />}
+                    </span>
+                    <strong>{habit.name}</strong>
+                    <span>{habit.target}</span>
+                    <em>{habit.streak}-day streak</em>
+                    <small>{habit.doneToday ? "Done today" : "Not done yet"}</small>
+                  </button>
+                </li>
               ))}
-            </div>
+            </ul>
           </section>
 
-          <section className="panel" id="goals">
+          <section className="panel" id="goals" aria-labelledby="goals-heading">
             <div className="panel-heading">
               <div>
                 <p className="eyebrow">North stars</p>
-                <h2>Goals</h2>
+                <h2 id="goals-heading">Goals</h2>
               </div>
               <Target size={20} />
             </div>
@@ -670,6 +1365,7 @@ export default function Home() {
                   <div>
                     <span>{goal.horizon}</span>
                     <strong>{goal.title}</strong>
+                    <small>{goal.progress}% · Manually updated</small>
                   </div>
                   <label>
                     <span>{goal.progress}%</span>
@@ -689,11 +1385,11 @@ export default function Home() {
             </div>
           </section>
 
-          <section className="panel">
+          <section className="panel" aria-labelledby="projects-heading">
             <div className="panel-heading">
               <div>
                 <p className="eyebrow">Project flow</p>
-                <h2>Projects</h2>
+                <h2 id="projects-heading">Projects</h2>
               </div>
               <FolderKanban size={20} />
             </div>
@@ -704,7 +1400,7 @@ export default function Home() {
                   <div>
                     <span>{project.stage}</span>
                     <strong>{project.name}</strong>
-                    <p>{project.nextAction}</p>
+                    <p>Next: {project.nextAction}</p>
                   </div>
                   <div className="project-actions">
                     <button
@@ -723,48 +1419,73 @@ export default function Home() {
                       <ChevronRight size={17} />
                     </button>
                   </div>
-                  <div className="track">
+                  <div
+                    className="track"
+                    role="progressbar"
+                    aria-label={`${project.name} progress`}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={project.progress}
+                  >
                     <span style={{ width: `${project.progress}%` }} />
                   </div>
+                  <button
+                    className="project-add-button"
+                    onClick={() => addProjectNextAction(project)}
+                    type="button"
+                  >
+                    <Plus size={16} />
+                    Add next action to today
+                  </button>
                 </article>
               ))}
             </div>
           </section>
 
-          <section className="panel journal-panel" id="journal">
+          <section
+            className="panel journal-panel"
+            id="journal"
+            aria-labelledby="journal-heading"
+          >
             <div className="panel-heading">
               <div>
                 <p className="eyebrow">Notes and journal</p>
-                <h2>Notes &amp; journal</h2>
+                <h2 id="journal-heading">Notes &amp; journal</h2>
               </div>
               <NotebookPen size={20} />
             </div>
 
-            <label className="text-field">
-              <span>Morning journal</span>
-              <textarea
-                onChange={(event) =>
-                  updateState((current) => ({
-                    ...current,
-                    journal: event.target.value,
-                  }))
-                }
-                value={state.journal}
-              />
-            </label>
+            <article className="journal-block">
+              <label className="text-field">
+                <span>Morning reflection</span>
+                <textarea
+                  onChange={(event) => updateJournalField("journal", event.target.value)}
+                  value={state.journal}
+                />
+              </label>
+            </article>
 
-            <label className="text-field">
-              <span>Quick note</span>
-              <textarea
-                onChange={(event) =>
-                  updateState((current) => ({
-                    ...current,
-                    note: event.target.value,
-                  }))
-                }
-                value={state.note}
-              />
-            </label>
+            <article className="journal-block">
+              <label className="text-field">
+                <span>Evening reflection</span>
+                <textarea
+                  onChange={(event) =>
+                    updateJournalField("eveningJournal", event.target.value)
+                  }
+                  value={state.eveningJournal}
+                />
+              </label>
+            </article>
+
+            <article className="journal-block">
+              <label className="text-field">
+                <span>Quick notes</span>
+                <textarea
+                  onChange={(event) => updateJournalField("note", event.target.value)}
+                  value={state.note}
+                />
+              </label>
+            </article>
           </section>
         </div>
       </section>
@@ -783,7 +1504,7 @@ function StatusTile({
 }) {
   return (
     <article className="status-tile">
-      <span>{icon}</span>
+      <span aria-hidden="true">{icon}</span>
       <div>
         <p>{label}</p>
         <strong>{value}</strong>

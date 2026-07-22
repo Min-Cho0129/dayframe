@@ -1,10 +1,20 @@
 # Dayframe
 
-Dayframe is a morning productivity dashboard for tasks, goals, habits,
+Dayframe is a daily planning app for time-blocked tasks, goals, habits,
 projects, notes, journaling, and a rotating daily quote.
 
 The current app stores user data in the browser with `localStorage`, so it can
 run on Vercel without a backend or database.
+
+## Product Scope
+
+- Plan today with one critical task, a start time, estimated duration, and intention.
+- Add tasks with scheduled time, duration, and priority.
+- Review a visible daily schedule instead of only a status dashboard.
+- Track habits with today completion and streak labels.
+- See how momentum is calculated from tasks, habits, and daily check-in.
+- Add a project next action directly into today's task list.
+- Store each day by the browser's local date key.
 
 ## Deploy On Vercel
 
