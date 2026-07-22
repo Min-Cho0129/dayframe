@@ -852,6 +852,28 @@ function parseScheduleMinutes(time: string) {
   return hour * 60 + minute;
 }
 
+function getDefaultScheduleStart(energy: number) {
+  const safeEnergy = Math.round(clamp(energy, 1, 5));
+  if (safeEnergy <= 2) return 10 * 60 + 30;
+  if (safeEnergy === 3) return 10 * 60;
+  return 9 * 60;
+}
+
+function findAvailableScheduleStart(
+  blocks: Array<{ start: number; end: number }>,
+  earliestStart: number,
+  durationMinutes: number,
+) {
+  let cursor = earliestStart;
+
+  for (const block of [...blocks].sort((a, b) => a.start - b.start)) {
+    if (cursor + durationMinutes <= block.start) return cursor;
+    if (cursor < block.end + 10) cursor = block.end + 10;
+  }
+
+  return cursor;
+}
+
 function getScheduleInsights(tasks: Task[], energy: number): ScheduleInsight[] {
   const activeTasks = tasks.filter((task) => !task.done);
   const unscheduledCount = activeTasks.filter((task) => !task.scheduledTime).length;
@@ -1192,6 +1214,10 @@ export default function Home() {
       state.tasks.filter(
         (task) => !task.done && parseScheduleMinutes(task.scheduledTime) !== null,
       ),
+    [state.tasks],
+  );
+  const unscheduledOpenTasks = useMemo(
+    () => state.tasks.filter((task) => !task.done && !task.scheduledTime),
     [state.tasks],
   );
   const scheduleInsights = useMemo(
@@ -1578,6 +1604,53 @@ export default function Home() {
         ),
       }),
       "Schedule auto-spaced.",
+    );
+    cancelTaskEdit();
+  }
+
+  function scheduleOpenTasks() {
+    updateState(
+      (current) => {
+        const openTasks = [...current.tasks]
+          .filter((task) => !task.done && !task.scheduledTime)
+          .sort(compareTasks);
+        if (!openTasks.length) return current;
+
+        const occupiedBlocks = current.tasks
+          .map((task) => {
+            const start = parseScheduleMinutes(task.scheduledTime);
+            return start === null
+              ? null
+              : { start, end: start + clampMinutes(task.durationMinutes) };
+          })
+          .filter(
+            (block): block is { start: number; end: number } => Boolean(block),
+          )
+          .sort((a, b) => a.start - b.start);
+        const nextTimes = new Map<string, string>();
+        let cursor = getDefaultScheduleStart(current.energy);
+
+        for (const task of openTasks) {
+          const duration = clampMinutes(task.durationMinutes);
+          const start = findAvailableScheduleStart(occupiedBlocks, cursor, duration);
+          const end = start + duration;
+
+          nextTimes.set(task.id, formatMinutesAsInputTime(start));
+          occupiedBlocks.push({ start, end });
+          occupiedBlocks.sort((a, b) => a.start - b.start);
+          cursor = end + 10;
+        }
+
+        return {
+          ...current,
+          tasks: current.tasks.map((task) =>
+            nextTimes.has(task.id)
+              ? { ...task, scheduledTime: nextTimes.get(task.id) ?? task.scheduledTime }
+              : task,
+          ),
+        };
+      },
+      "Open tasks scheduled.",
     );
     cancelTaskEdit();
   }
@@ -2308,15 +2381,26 @@ export default function Home() {
                   <Clock3 size={17} />
                   <h3 id="schedule-heading">Today&apos;s schedule</h3>
                 </div>
-                <button
-                  className="secondary-button"
-                  disabled={autoSpaceableTasks.length < 2}
-                  onClick={autoSpaceSchedule}
-                  type="button"
-                >
-                  <Clock3 size={16} />
-                  Auto-space schedule
-                </button>
+                <div className="schedule-actions">
+                  <button
+                    className="secondary-button"
+                    disabled={!unscheduledOpenTasks.length}
+                    onClick={scheduleOpenTasks}
+                    type="button"
+                  >
+                    <Plus size={16} />
+                    Schedule open tasks
+                  </button>
+                  <button
+                    className="secondary-button"
+                    disabled={autoSpaceableTasks.length < 2}
+                    onClick={autoSpaceSchedule}
+                    type="button"
+                  >
+                    <Clock3 size={16} />
+                    Auto-space schedule
+                  </button>
+                </div>
               </div>
               <section className="timeline-block" aria-label="Daily timeline">
                 <div className="timeline-heading">

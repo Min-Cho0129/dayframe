@@ -1037,6 +1037,13 @@ textarea {
   justify-content: space-between;
 }
 
+.schedule-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .schedule-list li {
   align-items: center;
   border-top: 1px solid rgba(219, 227, 220, 0.8);

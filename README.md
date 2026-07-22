@@ -14,6 +14,7 @@ run on Vercel without a backend or database.
 - Edit the AI draft task titles, times, durations, priorities, areas, and critical marker before accepting it.
 - Check the daily schedule for time overlaps, unscheduled work, open space, and workload fit.
 - See scheduled tasks and open gaps in a visual daily timeline.
+- Schedule open tasks automatically into available time slots.
 - Auto-space scheduled tasks to remove overlaps while preserving task order and durations.
 - Edit existing tasks inline to fix schedule issues after a plan has been accepted.
 - Save a daily review that feeds future AI plans with recent context and carry-over tasks.
