@@ -9,6 +9,15 @@ The current app stores user data in the browser with `localStorage`, so it can
 run on Vercel without a backend or database. Optional server persistence can be
 enabled with Upstash Redis REST environment variables.
 
+## App Structure
+
+- `app/page.tsx`: the main client UI and user interactions.
+- `types/dayframe.ts`: shared app, planner, schedule, and sync-facing types.
+- `lib/storage/dayframe-storage.ts`: browser storage, daily state, persistent state, and AI planning memory.
+- `lib/planner/schedule.ts`: time-block scheduling, workload checks, task ordering, and energy recommendations.
+- `app/api/ai-plan/route.ts`: the AI planning API route.
+- `app/api/sync/route.ts`: the sync validation and optional persistence API route.
+
 ## Product Scope
 
 - Plan today with one critical task, a start time, estimated duration, and intention.

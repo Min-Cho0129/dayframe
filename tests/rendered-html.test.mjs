@@ -80,6 +80,9 @@ test("keeps starter preview code out of the app surface", async () => {
     syncContract,
     syncStorage,
     dbSchema,
+    typesFile,
+    storageFile,
+    scheduleFile,
     previewFiles,
   ] =
     await Promise.all([
@@ -90,30 +93,39 @@ test("keeps starter preview code out of the app surface", async () => {
       readFile(new URL("../app/sync-contract.js", import.meta.url), "utf8"),
       readFile(new URL("../app/sync-storage.js", import.meta.url), "utf8"),
       readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
+      readFile(new URL("../types/dayframe.ts", import.meta.url), "utf8"),
+      readFile(
+        new URL("../lib/storage/dayframe-storage.ts", import.meta.url),
+        "utf8",
+      ),
+      readFile(new URL("../lib/planner/schedule.ts", import.meta.url), "utf8"),
       readdir(previewRoot),
     ]);
 
   assert.deepEqual(previewFiles, []);
-  assert.match(page, /dayframe-app-v4/);
-  assert.match(page, /dayframe:persistent-v1/);
-  assert.match(page, /readPersistentState/);
-  assert.match(page, /extractDailyStoredState/);
-  assert.match(page, /habitCompletions/);
+  assert.match(typesFile, /export type AppState/);
+  assert.match(typesFile, /export type GeneratedPlanTask/);
+  assert.match(typesFile, /export type PlannerMemoryContext/);
+  assert.match(storageFile, /dayframe-app-v4/);
+  assert.match(storageFile, /dayframe:persistent-v1/);
+  assert.match(storageFile, /readPersistentState/);
+  assert.match(storageFile, /extractDailyStoredState/);
+  assert.match(storageFile, /habitCompletions/);
   assert.match(page, /dailyQuotes/);
   assert.match(page, /getDailyQuote/);
-  assert.match(page, /getScheduleInsights/);
-  assert.match(page, /getDailyTimeline/);
-  assert.match(page, /getTimelineSegmentHeight/);
+  assert.match(scheduleFile, /getScheduleInsights/);
+  assert.match(scheduleFile, /getDailyTimeline/);
+  assert.match(scheduleFile, /getTimelineSegmentHeight/);
   assert.match(page, /scheduleOpenTasks/);
-  assert.match(page, /getRoundedCurrentScheduleStart/);
-  assert.match(page, /DEFAULT_DAY_END_MINUTES/);
-  assert.match(page, /findAvailableScheduleStart/);
-  assert.match(page, /getDefaultScheduleStart/);
-  assert.match(page, /compareScheduledTasks/);
+  assert.match(scheduleFile, /getRoundedCurrentScheduleStart/);
+  assert.match(scheduleFile, /DEFAULT_DAY_END_MINUTES/);
+  assert.match(scheduleFile, /findAvailableScheduleStart/);
+  assert.match(scheduleFile, /getDefaultScheduleStart/);
+  assert.match(scheduleFile, /compareScheduledTasks/);
   assert.match(page, /autoSpaceSchedule/);
-  assert.match(page, /formatMinutesAsInputTime/);
-  assert.match(page, /Time overlap/);
-  assert.match(page, /Heavy plan/);
+  assert.match(scheduleFile, /formatMinutesAsInputTime/);
+  assert.match(scheduleFile, /Time overlap/);
+  assert.match(scheduleFile, /Heavy plan/);
   assert.match(page, /generatePlan/);
   assert.match(page, /acceptGeneratedPlan/);
   assert.match(page, /preservedOpenTasks/);
@@ -124,7 +136,7 @@ test("keeps starter preview code out of the app surface", async () => {
   assert.match(page, /updateGeneratedPlanTask/);
   assert.match(page, /removeGeneratedPlanTask/);
   assert.match(page, /Critical task/);
-  assert.match(page, /buildPlanningPrompt/);
+  assert.match(storageFile, /buildPlanningPrompt/);
   assert.match(page, /planGuide/);
   assert.match(page, /planEnergy/);
   assert.match(page, /planEnergyOptions/);
@@ -135,14 +147,14 @@ test("keeps starter preview code out of the app surface", async () => {
   assert.match(page, /Would like/);
   assert.match(page, /Constraints/);
   assert.match(page, /Extra notes/);
-  assert.match(page, /dayframe-memory-v1/);
+  assert.match(storageFile, /dayframe-memory-v1/);
   assert.match(page, /saveDailyReview/);
-  assert.match(page, /summarizePlannerMemory/);
+  assert.match(storageFile, /summarizePlannerMemory/);
   assert.match(page, /getLocalDateKey/);
   assert.match(page, /useSyncExternalStore/);
-  assert.match(page, /clearStaleDemoStorage/);
+  assert.match(storageFile, /clearStaleDemoStorage/);
   assert.match(page, /syncCurrentSnapshot/);
-  assert.match(page, /dayframe-device-id-v1/);
+  assert.match(storageFile, /dayframe-device-id-v1/);
   assert.match(page, /Validate backup now/);
   assert.match(page, /\/api\/sync/);
   assert.match(syncRoute, /normalizeSyncPayload/);
