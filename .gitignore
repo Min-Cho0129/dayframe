@@ -34,6 +34,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# Codex Sites / OpenAI hosting metadata
+.openai/
+
 # typescript
 next-env.d.ts
 /dist/

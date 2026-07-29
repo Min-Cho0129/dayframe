@@ -1,5 +1,7 @@
 # Dayframe
 
+[Live Vercel App](https://dayframe-mu.vercel.app)
+
 Dayframe is a daily planning app for time-blocked tasks, goals, habits,
 projects, notes, journaling, and a rotating daily quote.
 
@@ -121,6 +123,6 @@ npm test
 
 ## Current Preview URL
 
-The existing `chatgpt.site` URL was published with Codex Sites for previewing.
-Vercel is now prepared as the primary sharing path for people to try the app
-from the GitHub repository.
+The public app is available on Vercel:
+
+[https://dayframe-mu.vercel.app](https://dayframe-mu.vercel.app)
